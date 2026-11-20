@@ -1,0 +1,539 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[polish]{babel}
+\usepackage{lmodern}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  columns=fullflexible,
+  frame=single,
+  rulecolor=\color{gray!60},
+  backgroundcolor=\color{gray!6},
+  breaklines=true,
+  showstringspaces=false
+}
+
+\newcommand{\W}{W}
+\newcommand{\Pz}{P}
+\newcommand{\Tk}{T_k}
+
+\title{\textbf{Reasoning Scaffolds for Evolving Requirements}\\[4pt]
+\large Plan projektu -- wersja poprawiona po uwagach profesora}
+\author{Sikora, Zeliuk\\ Studio projektowe 2}
+\date{9 listopada 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Projekt bada, czy \emph{reasoning scaffolds}, czyli jawne struktury rozumowania, pomagają modelom językowym (LLM) poprawnie aktualizować modele behawioralne, gdy wymagania się zmieniają. Porównujemy dwa typy scaffoldów: kwadrat logiczny i graf ograniczeń. Punktem odniesienia jest LLM bez scaffoldu oraz LLM z dodatkowym, nieustrukturyzowanym krokiem analizy. Artefaktem jest maszyna stanów zapisana w JSON. Poprawność oceniamy automatycznie względem wzorców i testów wymagań. Dokument zawiera formalizację obu scaffoldów, projekt eksperymentu, definicje metryk, plan analizy statystycznej oraz odpowiedź na pięć uwag profesora (sekcja~\ref{sec:odpowiedz}).
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%=====================================================================
+\section{Wprowadzenie}
+
+\subsection{Problem}
+LLM potrafi na podstawie wymagań wygenerować model zachowania systemu, np. maszynę stanów dla obsługi zamówień. W praktyce wymagania się jednak zmieniają, a model trzeba aktualizować. Typowy błąd polega na tym, że LLM poprawnie wprowadza nową funkcję, ale przy okazji psuje coś, co wcześniej działało. Taki błąd nazywamy \emph{regresją}. Drugi problem to sprzeczne wymagania: poprawną reakcją jest wtedy wykrycie konfliktu i wstrzymanie aktualizacji, a nie wygenerowanie jakiegokolwiek modelu.
+
+\subsection{Scaffold -- definicja robocza}
+Przyjmujemy, że \emph{scaffold} to jawna, ustrukturyzowana reprezentacja pojęć, założeń i relacji między nimi, która kieruje lub ogranicza decyzje podejmowane podczas generowania artefaktu. Formalnie:
+\[
+S = \langle C, A, R, \Gamma, D \rangle,
+\]
+gdzie:
+\begin{itemize}
+  \item $C$ -- pojęcia istotne dla artefaktu;
+  \item $A$ -- założenia, z podanym źródłem lub statusem: wymagane, wywnioskowane albo nierozstrzygnięte;
+  \item $R$ -- relacje między pojęciami i założeniami, np. implikacja, sprzeczność, wykluczenie;
+  \item $\Gamma$ -- reguły lub ograniczenia używane do sprawdzania spójności i wyprowadzania konsekwencji;
+  \item $D$ -- decyzje dotyczące artefaktu, które scaffold uzasadnia, sugeruje lub ogranicza.
+\end{itemize}
+
+\subsection{Typologia scaffoldów}
+Typy scaffoldów można klasyfikować według relacji, które pomagają rozumować:
+
+\begin{center}
+\begin{tabularx}{0.9\textwidth}{lL}
+\toprule
+Typ & Relacje, które ujawnia \\
+\midrule
+Logiczny & sprzeczność, implikacja, wykluczanie (np. kwadrat logiczny) \\
+Czasowy & „przed”, „potem”, „zawsze”, „aż do” \\
+Procesowy & kolejność działań, wybór, równoległość, warunki przejść \\
+Przyczynowy & przyczyna, warunek, skutek \\
+Normatywny & obowiązek, zakaz, dozwolenie \\
+Celowościowy & cele, podcele, konflikty i zależności między celami \\
+Argumentacyjny & twierdzenie, przesłanka, dowód, kontrargument \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+W eksperymencie badamy dwa typy: \textbf{logiczny} (kwadrat logiczny) i typ oparty na zależnościach (\textbf{graf ograniczeń}, łączący cechy typu logicznego i procesowego).
+
+\subsection{Teza i pytania badawcze}
+\textbf{Teza.} Wykorzystanie reasoning scaffolds zmniejsza liczbę błędów i regresji podczas aktualizowania modeli behawioralnych w porównaniu z LLM-em bez scaffoldingu.
+
+\textbf{Pytania badawcze:}
+\begin{enumerate}[label=\textbf{P\arabic*.}]
+  \item Czy scaffold pomaga poprawnie aktualizować modele? Rozróżniamy dwa porównania: \emph{praktyczne} (scaffold kontra zwykły LLM) i \emph{strukturalne} (scaffold kontra dodatkowy krok swobodnej analizy przy tej samej liczbie wywołań).
+  \item Czy scaffold zapobiega kumulowaniu się błędów przy kolejnych zmianach?
+  \item Który scaffold lepiej radzi sobie z którym typem zmiany i z którym rodzajem sprzeczności?
+\end{enumerate}
+
+\textbf{Hipoteza robocza do P3.} Kwadrat logiczny może lepiej wykrywać sprzeczności typu „wolno / nie wolno w danym stanie”, a graf ograniczeń lepiej reprezentować zależności oraz wykrywać sprzeczności przechodnie i cykle kolejności. Chcemy to sprawdzić, a nie zakładać z góry.
+
+%=====================================================================
+\section{Artefakt: maszyna stanów w JSON}
+\label{sec:artefakt}
+
+Artefaktem jest \textbf{uproszczona maszyna stanów UML} zapisana w JSON, tak aby skrypt mógł ją automatycznie porównać ze wzorcem:
+
+\begin{lstlisting}
+{
+  "states": ["Nowe", "Oplacone", "Wyslane", "Anulowane"],
+  "initial": "Nowe",
+  "final": ["Wyslane", "Anulowane"],
+  "transitions": [
+    {"from": "Nowe", "event": "zaplac", "guard": null, "to": "Oplacone"},
+    {"from": "Oplacone", "event": "anuluj", "guard": "przed_24h", "to": "Anulowane"}
+  ]
+}
+\end{lstlisting}
+
+\subsection{Semantyka}
+\begin{itemize}
+  \item Przejście to czwórka $(\textit{skąd}, \textit{zdarzenie}, \textit{warunek}, \textit{dokąd})$.
+  \item Według wstępnych założeń, każde przejście ma \textbf{co najwyżej jeden warunek}: pole \texttt{guard} to jedna nazwa ze słownika albo \texttt{null}. Warunków złożonych (np. „\texttt{przed\_24h} i \texttt{oplacone}”) nie stosujemy.
+  \item \textbf{Semantyka zamkniętego świata:} zdarzenie, którego nie ma w danym stanie, jest zabronione. 
+  \item \textbf{Determinizm:} dla danego stanu i zdarzenia nie istnieją dwa przejścia do różnych stanów, których warunki mogą być spełnione jednocześnie. Skrypt sprawdza to na podstawie słownika: dwa przejścia z tego samego stanu i na to samo zdarzenie są dozwolone tylko wtedy, gdy ich warunki są oznaczone jako wykluczające się.
+\end{itemize}
+
+\subsection{Stały słownik nazw}
+Każdy system w datasecie ma listę dozwolonych stanów, zdarzeń i warunków, którą LLM dostaje w prompcie. Bez tego synonimy (np. „Oplacone” i „Zaplacone”) uniemożliwiłyby automatyczne porównanie. Słownik zawiera też pary warunków wykluczających się, np. \texttt{przed\_24h} $\leftrightarrow$ \texttt{po\_24h}.
+
+\subsection{Założenia o warunkach}
+\begin{enumerate}
+  \item Warunki występują w parach, które się \textbf{wykluczają i wyczerpują}: zawsze zachodzi dokładnie jeden z pary.
+  \item Obie wartości każdego warunku są \textbf{możliwe}.
+  \item Warunki \textbf{nie zależą od drogi dojścia do stanu} (np. dojście do stanu Oplacone nie przesądza, czy jest \texttt{przed\_24h}).
+  \item Jeśli w systemie jest kilka par warunków, są one \textbf{od siebie niezależne}, a dziedzinę tworzą \textbf{wszystkie kombinacje} ich wartości. Przy dwóch parach są to cztery możliwe sytuacje w każdym stanie.
+\end{enumerate}
+Założenia te (pary wyczerpujące, niezależność, jeden warunek na przejście) są \textbf{uproszczeniami eksperymentu}, a nie cechami rzeczywistych systemów. W raporcie końcowym opisujemy je jako ograniczenia.
+
+\subsection{Identyfikatory i uzasadnienia}
+Wymagania w datasecie mają identyfikatory (R1, R2, \ldots). Sam JSON modelu \textbf{nie zawiera} uzasadnień przejść. Gdyby baseline bez scaffoldu musiał uzasadniać każde przejście, dostałby w praktyce ukryty mini-scaffold i porównanie byłoby zaburzone. Uzasadnienia występują tylko w części $D$ scaffoldu (warianty M1 i M2).
+
+%=====================================================================
+\section{Scaffoldy we wspólnej formalizacji}
+\label{sec:scaffoldy}
+
+\subsection{Elementy wspólne}
+Oba scaffoldy są zapisane w tej samej formalizacji $\langle C, A, R, \Gamma, D\rangle$. Różnią się \textbf{tylko} składnikami $R$ i $\Gamma$, dzięki czemu porównanie dotyczy wyłącznie typu scaffoldu.
+\begin{itemize}
+  \item $C$ -- elementy ze słownika: stany, zdarzenia, warunki.
+  \item $A$ -- lista założeń z ID i statusem: \emph{wymagane} (z ID wymagania), \emph{wywnioskowane} albo \emph{nierozstrzygnięte}.
+  \item $D$ -- lista przejść, każde z odnośnikiem do założeń i relacji, które je uzasadniają. Format wpisu jest wymuszony schematem JSON:
+\begin{lstlisting}
+{"transition": ["Oplacone", "anuluj", "przed_24h", "Anulowane"],
+ "justified_by": ["A3", "R7"]}
+\end{lstlisting}
+  Każdy odnośnik musi wskazywać istniejący element $A$ lub $R$, co sprawdza skrypt.
+\end{itemize}
+
+\subsection{Kwadrat logiczny}
+
+\paragraph{Konstrukcja.} Dla każdej pary $(s, e)$ (stan, zdarzenie) tworzymy \textbf{jeden kwadrat} o stałym podmiocie („możliwe sytuacje w stanie $s$”) i stałym orzeczeniu („pozwalają wykonać $e$”).
+
+\paragraph{Dziedzina zdań.} Są to \textbf{wszystkie możliwe sytuacje w stanie $s$ dopuszczone przez reguły}, czyli wszystkie kombinacje wartości warunków. Nie chodzi o zamówienia, które akurat istnieją w systemie. Zdanie O znaczy więc: „istnieje możliwa sytuacja w $s$, w której $e$ jest niedozwolone”.
+
+\begin{center}
+\begin{tabularx}{\textwidth}{clL}
+\toprule
+Forma & Zdanie & Znaczenie w modelu \\
+\midrule
+A & Każda możliwa sytuacja w $s$ pozwala wykonać $e$ & przejście bez warunku \\
+E & Żadna możliwa sytuacja w $s$ nie pozwala wykonać $e$ & brak przejścia \\
+I & Niektóre możliwe sytuacje w $s$ pozwalają wykonać $e$ & istnieje przejście \\
+O & Niektóre możliwe sytuacje w $s$ nie pozwalają wykonać $e$ & nie zawsze dozwolone \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Przejście z warunkiem odpowiada sytuacji, w której I i O są jednocześnie prawdziwe. Ta równoważność obowiązuje dzięki założeniom o warunkach (obie wartości możliwe i niezależne od drogi dojścia).
+
+\paragraph{Relacje $R$.} $R$ zawiera \textbf{wszystkie cztery zdania} dla każdej pary $(s, e)$. Każde zdanie ma status \emph{prawdziwe}, \emph{fałszywe} albo \emph{nierozstrzygnięte} oraz odnośnik do wymagania lub założenia. Brak informacji oznacza „nierozstrzygnięte”, a \textbf{nie} „fałszywe”.
+
+\paragraph{Reguły $\Gamma$.} Reguły klasycznego kwadratu:
+\begin{itemize}
+  \item \textbf{sprzeczność} (A--O, E--I): dokładnie jedno ze zdań jest prawdziwe;
+  \item \textbf{przeciwieństwo} (A--E): nie mogą być oba prawdziwe;
+  \item \textbf{podprzeciwieństwo} (I--O): nie mogą być oba fałszywe;
+  \item \textbf{podporządkowanie}: A $\Rightarrow$ I, E $\Rightarrow$ O.
+\end{itemize}
+
+\paragraph{Przyjęta logika.} Klasyczna sylogistyka z \textbf{założeniem egzystencjalnym}: każdy stan z $C$ jest osiągalny. Przy przyjętej dziedzinie (możliwe sytuacje) i założeniach o warunkach osiągalność stanu wystarcza, aby zbiór sytuacji był niepusty. Bez tego założenia obowiązywałaby tylko relacja sprzeczności. Skrypt sprawdza osiągalność stanów na modelu.
+
+\paragraph{Implementacja $\Gamma$: tabela trzech stanów.} Przy przyjętych założeniach każda para $(s, e)$ może być tylko w jednym z trzech stanów:
+
+\begin{center}
+\begin{tabular}{lccccl}
+\toprule
+Stan pary & A & E & I & O & W modelu \\
+\midrule
+zawsze & P & F & P & F & przejście bez warunku \\
+nigdy & F & P & F & P & brak przejścia \\
+warunkowo & F & F & P & P & przejście z warunkiem \\
+\bottomrule
+\end{tabular}\\[2pt]
+{\small (P -- prawdziwe, F -- fałszywe)}
+\end{center}
+
+Skrypt porównuje rozstrzygnięte zdania pary z tymi trzema wierszami:
+\begin{itemize}
+  \item \textbf{nie pasują do żadnego wiersza} -- konflikt;
+  \item \textbf{pasują do dokładnie jednego} -- para jest rozstrzygnięta, a wszystkie cztery statusy zostają wyprowadzone;
+  \item \textbf{pasują do kilku} -- para pozostaje nierozstrzygnięta.
+\end{itemize}
+Tabela realizuje wszystkie reguły kwadratu jednocześnie. Przykład: samo „I fałszywe” pasuje tylko do wiersza „nigdy”, więc E i O są prawdziwe, a A fałszywe.
+
+\paragraph{Konflikt.} Rozstrzygnięte zdania pary $(s, e)$, także wyprowadzone, nie pasują do żadnego wiersza tabeli trzech stanów.
+
+\paragraph{Para nierozstrzygnięta przy generowaniu modelu.} Jeśli para $(s, e)$ pozostaje nierozstrzygnięta, obowiązuje zamknięty świat, czyli \textbf{brak przejścia}. W $D$ zapisujemy to jako decyzję opartą na założeniu nierozstrzygniętym. We wzorcu takie przypadki zwykle należą do zbioru przejść dopuszczalnych $\Pz$ (sekcja~\ref{sec:dataset}), więc brak przejścia nie jest karany.
+
+\paragraph{Wiedza a decyzja.} Nierozstrzygnięty status w scaffoldzie \textbf{nie oznacza}, że zdarzenie jest logicznie zabronione, a jedynie brak informacji potrzebnej do jego zatwierdzenia. Pominięcie przejścia w modelu jest \textbf{tymczasową decyzją projektową}, a nie wnioskiem z kwadratu. Skrypt \textbf{nie zapisuje} jej w $R$ jako „E prawdziwe” i nie wyprowadza z niej dalszych wniosków. W przeciwnym razie zgłaszałby fałszywe konflikty, gdy późniejsza zmiana rozstrzygnie tę parę.
+
+\paragraph{Zakres.} Kwadrat opisuje tylko to, \emph{czy} zdarzenie jest dozwolone w stanie. Nie opisuje kolejności ani stanu docelowego przejścia (ten jest określony w $D$). To ograniczenie jest częścią hipotezy: kwadrat powinien dobrze wykrywać sprzeczności, a gorzej reprezentować zależności.
+
+\subsection{Graf ograniczeń}
+
+\paragraph{Relacje $R$.} Węzłami są stany, zdarzenia i warunki. Krawędzie mają trzy typy:
+\begin{itemize}
+  \item $\textit{wymaga}(x, y)$;
+  \item $\textit{wyklucza}(x, y)$ -- relacja symetryczna;
+  \item $\textit{poprzedza}(x, y)$ -- ścisłe następstwo.
+\end{itemize}
+
+\paragraph{Reguły $\Gamma$.} Skrypt najpierw liczy \textbf{domknięcie przechodnie} relacji \textit{wymaga} (wszystko, czego $x$ wymaga pośrednio, oznaczamy $\textit{wymaga}^{+}$). Konfliktem jest:
+\begin{itemize}
+  \item $\textit{wymaga}^{+}(x, y)$ i jednocześnie $\textit{wyklucza}(x, y)$;
+  \item $\textit{wymaga}^{+}(x, y)$, $\textit{wymaga}^{+}(x, z)$ i $\textit{wyklucza}(y, z)$;
+  \item cykl w relacji \textit{poprzedza}.
+\end{itemize}
+Sam łańcuch typu „A wymaga B, B wyklucza C” konfliktem \textbf{nie jest}, bo C może po prostu nie występować.
+
+\paragraph{Strefa wpływu.} Są to węzły połączone ze zmienionym elementem ścieżką w \textbf{dowolnym kierunku}. Strefa jest \textbf{listą elementów do ponownego sprawdzenia}, a nie zakazem: zmiany poza nią są dozwolone, ale mierzone (metryka „zmiany zbędne”, sekcja~\ref{sec:metryki}). Sztywny zakaz byłby ryzykowny, bo graf buduje LLM i może w nim brakować krawędzi.
+
+\subsection{Cykl życia scaffoldu}
+
+\paragraph{Powstawanie.}
+\begin{enumerate}
+  \item LLM buduje scaffold z wymagań (wywołanie 1).
+  \item Skrypt w Pythonie sprawdza reguły $\Gamma$. Robi to deterministyczny kod, a nie LLM.
+  \item LLM generuje model na podstawie zatwierdzonego scaffoldu (wywołanie 2).
+\end{enumerate}
+
+\paragraph{Aktualizacja.} LLM dostaje stary scaffold i opis zmiany. Zwraca tylko \textbf{różnicę}: operacje dodaj, usuń lub zmień element o danym ID. Pozostałe elementy zostają nietknięte. Skrypt:
+\begin{enumerate}
+  \item sprawdza, czy wskazane ID istnieją;
+  \item stosuje operacje;
+  \item sprawdza $\Gamma$;
+  \item zatwierdza wynik albo go odrzuca.
+\end{enumerate}
+
+\paragraph{Obsługa konfliktu.}
+\begin{itemize}
+  \item zmiana dostaje status \texttt{pending} wraz z listą kłócących się wymagań;
+  \item model pozostaje w \textbf{ostatniej zatwierdzonej wersji};
+  \item wynikiem kroku jest „KONFLIKT” wraz z tą listą.
+\end{itemize}
+
+%=====================================================================
+\section{Dataset i przebieg eksperymentu}
+\label{sec:dataset}
+
+Dawne eksperymenty E1 (aktualizacja wymagań) i E3 (wiele kolejnych zmian) dotyczyły tego samego, dlatego łączymy je w \textbf{jeden eksperyment sekwencyjny}. Pytanie z dawnego E2 (porównanie scaffoldów przy różnych zmianach) realizujemy jako analizę tych samych danych. Eksperyment uzupełnia osobny zestaw sprzeczności.
+
+\subsection{Część główna: sekwencje zmian}
+\begin{itemize}
+  \item około \textbf{10 prostych systemów}, np. zamówienia, rezerwacje, biblioteka, kontrola dostępu;
+  \item dla każdego systemu: \textbf{krok 0} (model z wymagań początkowych $R_0$) i \textbf{kroki 1--5} (pięć kolejnych zmian), czyli razem 6 generacji;
+  \item typy zmian:
+  \begin{itemize}
+    \item nowa reguła,
+    \item nowa zależność,
+    \item zmiana przejścia,
+    \item usunięcie,
+    \item \textbf{dokładnie jedna sprzeczność}.
+  \end{itemize}
+\end{itemize}
+Jedna sprzeczność w sekwencji zapewnia realizm. Większą liczbę przypadków konfliktowych daje osobny zestaw (sekcja~\ref{sec:zestawZ}).
+
+\subsection{Wzorzec}
+Dla każdego kroku $k$ wzorzec składa się z dwóch zbiorów przejść:
+\begin{itemize}
+  \item $\W_k$ (\textbf{wymagane}) -- muszą być w modelu;
+  \item $\Pz_k$ (\textbf{dopuszczalne}) -- mogą być, ale nie muszą. To przypadki, w których wymagania są niepełne i poprawnych modeli jest kilka.
+\end{itemize}
+Wszystko spoza $\W_k \cup \Pz_k$ jest zabronione (zamknięty świat). Model jest poprawny, gdy $\W_k \subseteq \Tk \subseteq \W_k \cup \Pz_k$.
+
+\subsection{Testy wymagań}
+Każde wymaganie ma automatyczny test sprawdzany na modelu, np. R3: „ze stanu Wyslane nie wychodzi zdarzenie \textit{anuluj}”. Testy pozwalają oceniać nie tylko podobieństwo do wzorca, ale faktyczne spełnianie wymagań.
+
+\subsection{Krok ze sprzecznością}
+\begin{itemize}
+  \item Wzorzec: „KONFLIKT”, lista kłócących się wymagań oraz model niezmieniony.
+  \item \textbf{Reguła datasetu:} sprzeczna zmiana zostaje wycofana \textbf{po} kroku $k$, a krok $k+1$ startuje od ostatniego zatwierdzonego modelu.
+  \item Reguła obowiązuje wszystkie warianty. Warianty bez scaffoldu (B1, B2) również dostają w prompcie możliwość odpowiedzi „KONFLIKT”.
+  \item \textbf{Kontekst:} w kroku $k$ LLM dostaje zatwierdzone wymagania, ostatni zatwierdzony model oraz \textbf{nową zmianę, także sprzeczną}. Bez niej nie mógłby wykryć konfliktu. W kroku $k+1$ wycofanej zmiany nie ma już na liście wymagań.
+\end{itemize}
+
+\subsection{Zestaw sprzeczności (Z)}
+\label{sec:zestawZ}
+\paragraph{Cel.} Sprawdzić hipotezę, że kwadrat i graf wykrywają \textbf{różne rodzaje} sprzeczności. Jeden konflikt na sekwencję daje tylko około 10 przypadków, co na to nie wystarcza.
+
+\paragraph{Budowa.}
+\begin{itemize}
+  \item \textbf{20--30 przypadków konfliktowych}, po 2--3 na każdy z 10 systemów;
+  \item każdy przypadek to: zatwierdzone wymagania, wzorcowy model kroku 0 i jedna sprzeczna zmiana;
+  \item każdy przypadek jest oznaczony \textbf{rodzajem konfliktu}:
+  \begin{itemize}
+    \item \textbf{stanowy} -- „wolno / nie wolno wykonać $e$ w stanie $s$” (domena kwadratu);
+    \item \textbf{przechodni} -- sprzeczność wynikająca z łańcucha zależności (domena grafu);
+    \item \textbf{kolejności} -- cykl w relacji \textit{poprzedza} (domena grafu);
+  \end{itemize}
+  \item \textbf{pułapki}: 6--10 zmian, które \emph{wyglądają} na sprzeczne, ale nie są (np. „A wymaga B, B wyklucza C”). Mierzą skłonność do fałszywych alarmów.
+\end{itemize}
+
+\paragraph{Wzorzec.} Dla przypadków konfliktowych: „KONFLIKT” i lista kłócących się wymagań. Dla pułapek: „brak konfliktu”. W zestawie Z oceniamy tylko wykrywanie, bez pełnej oceny modelu.
+
+\paragraph{Przebieg.} Te same 4 warianty i te same ustalenia (prompt, temperatura, liczba powtórzeń). Warianty B1 i B2 dostają wzorcowy model kroku 0. Warianty M1 i M2 najpierw budują scaffold z wymagań, a następnie przetwarzają zmianę.
+
+%=====================================================================
+\section{Warianty i kontrola eksperymentu}
+\label{sec:kontrola}
+
+\subsection{Warianty}
+\begin{center}
+\begin{tabularx}{\textwidth}{clc}
+\toprule
+Wariant & Opis & Wywołania LLM na krok \\
+\midrule
+B1 & LLM bez scaffoldu & 1 \\
+B2 & swobodna analiza zmiany, następnie model & 2 \\
+M1 & kwadrat logiczny & 2 + skrypt \\
+M2 & graf ograniczeń & 2 + skrypt \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+\subsection{Dwa rodzaje porównań}
+\begin{enumerate}
+  \item \textbf{Praktyczne:} B1 kontra M1 i M2. Czy scaffold pomaga w porównaniu ze zwykłym użyciem LLM-a?
+  \item \textbf{Strukturalne:} B2 kontra M1 i M2, przy tej samej liczbie wywołań. Czy pomaga sama struktura, a nie tylko dodatkowy krok rozumowania?
+\end{enumerate}
+
+\subsection{Walidator jako dodatkowa zmienna}
+Tylko M1 i M2 mają skrypt sprawdzający $\Gamma$. Aby oddzielić wpływ struktury od wpływu walidatora:
+\begin{itemize}
+  \item logujemy każdą interwencję skryptu: ile konfliktów wykrył i ile zmian zablokował;
+  \item \emph{opcjonalnie}, na kilku systemach: warianty \textbf{M1 i M2 bez skryptu}. Symetryczna ablacja pozwala sprawdzić, czy walidator pomaga bardziej kwadratowi, czy grafowi.
+\end{itemize}
+
+\subsection{Elementy ustalone na sztywno}
+\begin{itemize}
+  \item \textbf{Prompt:} jeden szablon w repozytorium. Warianty różnią się tylko jego środkową sekcją. B1 i B2 nie są proszone o uzasadnienia.
+  \item \textbf{Kontekst:} w kroku $k$ każdy wariant widzi:
+  \begin{itemize}
+    \item zatwierdzone wymagania,
+    \item opis zmiany (także sprzecznej),
+    \item ostatni zatwierdzony model,
+    \item swój poprzedni scaffold lub analizę (B2, M1, M2).
+  \end{itemize}
+  \item \textbf{Próby:}
+  \begin{itemize}
+    \item 5 powtórzeń na każdy przypadek,
+    \item stała temperatura (np.\ 0{,}2),
+    \item zapisana dokładna wersja modelu językowego,
+    \item najwyżej 1 ponowienie przy niepoprawnym JSON-ie (tak samo dla wszystkich wariantów, liczba ponowień jest raportowana).
+  \end{itemize}
+  \item \textbf{Dane wejściowe:} wszystkie warianty pracują na identycznych wymaganiach i zmianach.
+  \item \textbf{Modele LLM:} główne badanie na jednym modelu, drugi model jako rozszerzenie (patrz pytania w sekcji~\ref{sec:pytania}).
+\end{itemize}
+
+%=====================================================================
+\section{Metryki}
+\label{sec:metryki}
+
+Oznaczenia: $\Tk$ -- zbiór przejść wygenerowanego modelu w kroku $k$; $\W_k$, $\Pz_k$ -- zbiory wymaganych i dopuszczalnych przejść ze wzorca. Przejście nienależące do $\W_k \cup \Pz_k$ jest zabronione.
+
+\subsection{Metryka główna: spełnienie wymagań}
+Odsetek testów wymagań, które model przechodzi. Testy obejmują tylko \textbf{wymagania zatwierdzone}. W kroku konfliktowym sprzecznej zmiany nie testujemy, bo poprawny model jej nie spełnia.
+
+\subsection{Poprawność strukturalna (metryka pomocnicza)}
+\[
+\text{Precyzja}_k = \frac{|\Tk \cap (\W_k \cup \Pz_k)|}{|\Tk|}, \qquad
+\text{Czułość}_k = \frac{|\Tk \cap \W_k|}{|\W_k|}, \qquad
+F1_k = \frac{2\cdot\text{Precyzja}_k\cdot\text{Czułość}_k}{\text{Precyzja}_k+\text{Czułość}_k}.
+\]
+Dodatkowo raportujemy, czy model jest w pełni poprawny w sensie wzorca: $\W_k \subseteq \Tk \subseteq \W_k \cup \Pz_k$.
+
+\subsection{Pokrycie zmiany}
+Liczone osobno dla dodań i usunięć, bo LLM-y typowo zapominają o usuwaniu.
+\begin{itemize}
+  \item \textbf{Do dodania:} $\mathit{Add}_k = \W_k \setminus \W_{k-1}$. Obejmuje to przejścia wcześniej zabronione i wcześniej dopuszczalne.
+  \[
+  \text{Pokrycie dodań}_k = \frac{|\mathit{Add}_k \cap \Tk|}{|\mathit{Add}_k|}.
+  \]
+  \item \textbf{Do usunięcia:} przejścia zabronione w kroku $k$, które w kroku $k-1$ były wymagane albo dopuszczalne i obecne w modelu:
+  \[
+  \mathit{Del}_k = \{\, t \notin \W_k \cup \Pz_k : t \in \W_{k-1} \ \lor\ (t \in \Pz_{k-1} \land t \in T_{k-1}) \,\},
+  \qquad
+  \text{Pokrycie usunięć}_k = \frac{|\mathit{Del}_k \setminus \Tk|}{|\mathit{Del}_k|}.
+  \]
+\end{itemize}
+
+\subsection{Regresje}
+\begin{itemize}
+  \item \textbf{Regresja funkcjonalna} (ważniejsza): zatwierdzone wymaganie, którego zmiana $k$ nie dotyczyła, przechodziło test w kroku $k-1$, a w kroku $k$ nie przechodzi.
+  \item \textbf{Regresja strukturalna}: przejście, którego status we wzorcu (wymagane, dopuszczalne, zabronione) jest taki sam w krokach $k-1$ i $k$, było poprawne w $T_{k-1}$, a w $\Tk$ jest błędne. Przejście wymagane jest poprawne, gdy jest obecne, a zabronione, gdy go nie ma. Przejścia dopuszczalne są zawsze poprawne.
+\end{itemize}
+Dzięki warunkowi „zmiana $k$ go nie dotyczyła” oddzielamy zamierzone zmiany modelu od niezamierzonych regresji.
+
+\subsection{Halucynacje}
+Definiujemy halucynację jako element artefaktu, którego nie uzasadniają wymagania ani zatwierdzony scaffold. Wariant B1 nie podaje uzasadnień. Aby porównać wszystkie warianty, \textbf{świadomie operacjonalizujemy} tę definicję:
+\[
+H_k = \Tk \setminus (\W_k \cup \Pz_k).
+\]
+Zbiory $\W_k$ i $\Pz_k$ budujemy z wymagań, więc „spoza $\W_k \cup \Pz_k$” znaczy „nieuzasadnione wymaganiami”. Dzięki zbiorowi $\Pz_k$ inne, ale poprawne rozwiązanie \textbf{nie} jest liczone jako halucynacja.
+
+Przejście spoza $\W_k \cup \Pz_k$, które wynika z zatwierdzonego scaffoldu, liczymy jako halucynację, choć według definicji byłoby błędem scaffoldu. Dla M1 i M2 te przypadki rozdzielamy:
+\begin{itemize}
+  \item \textbf{halucynacja ścisła}: przejście z $H_k$ \textbf{bez} poprawnego uzasadnienia w $D$;
+  \item \textbf{błąd uzasadniony scaffoldem}: przejście z $H_k$ \textbf{z} uzasadnieniem w $D$. Błąd leży wtedy w samym scaffoldzie, a nie w przejściu od scaffoldu do modelu.
+\end{itemize}
+
+\subsection{Decyzje bez uzasadnienia}
+Liczona \textbf{tylko dla M1 i M2}: odsetek przejść w modelu, które nie mają w $D$ wpisu z poprawnym odnośnikiem do elementu $A$ lub $R$. Dla B1 i B2 ta metryka nie istnieje, bo warianty te nie produkują uzasadnień (sekcja~\ref{sec:artefakt}).
+
+\subsection{Zmiany zbędne}
+Przejścia zmienione między $T_{k-1}$ a $\Tk$ (należące do $T_{k-1} \triangle \Tk$), które nie należą do $\mathit{Add}_k \cup \mathit{Del}_k$. Liczone dla wszystkich wariantów. Dla M2 dodatkowo raportujemy, jaka ich część leży poza strefą wpływu.
+
+\subsection{Wykrywanie konfliktów}
+\begin{itemize}
+  \item Liczymy trafienia (wykryty prawdziwy konflikt), fałszywe alarmy i przeoczenia, a z nich precyzję i czułość wykrywania.
+  \item Krok ze sprzecznością jest poprawny tylko wtedy, gdy wynik to „KONFLIKT”, a model pozostał niezmieniony.
+  \item Czułość liczymy na sekwencjach i zestawie Z łącznie, a także \textbf{osobno dla każdego rodzaju konfliktu} (stanowy, przechodni, kolejności).
+  \item Fałszywe alarmy liczymy na krokach bez konfliktu w sekwencjach oraz osobno na \textbf{pułapkach}.
+\end{itemize}
+
+\subsection{Koszt i powtarzalność}
+\begin{itemize}
+  \item \textbf{Koszt:} liczba wywołań, liczba tokenów, czas.
+  \item \textbf{Powtarzalność:} odchylenie standardowe metryki głównej między powtórzeniami.
+\end{itemize}
+
+%=====================================================================
+\section{Analiza statystyczna}
+\label{sec:statystyka}
+
+\begin{itemize}
+  \item Kolejne kroki jednego systemu nie są niezależne, więc \textbf{jednostką analizy jest system}. Dla każdego systemu i wariantu liczymy średnią po powtórzeniach i krokach. Warianty porównujemy testem dla par (test Wilcoxona) na 10 systemach.
+  \item Główna średnia obejmuje \textbf{tylko kroki 1--5}, bo teza dotyczy aktualizacji, a krok 0 nią nie jest. Jakość modelu początkowego (krok 0) raportujemy osobno.
+  \item Kumulowanie się błędów (P2) przedstawiamy jako przebieg metryk w funkcji numeru kroku.
+\end{itemize}
+
+\subsection{Część potwierdzająca (ustalona przed eksperymentem)}
+\begin{itemize}
+  \item \textbf{metryka:} spełnienie wymagań, średnia z kroków 1--5;
+  \item \textbf{porównania:} B1--M1, B1--M2 (praktyczne), B2--M1, B2--M2 (strukturalne), M1--M2;
+  \item \textbf{korekta Holma} na tych pięciu porównaniach.
+\end{itemize}
+
+\subsection{Część eksploracyjna}
+Wszystko inne: pozostałe metryki, podział według typów zmian (około 10 przypadków na typ), zestaw Z oraz ablacja bez skryptu. Raportujemy je opisowo lub z wyraźnym oznaczeniem, że to wyniki eksploracyjne.
+
+\subsection{Ograniczenia}
+\begin{itemize}
+  \item Przy 10 systemach test Wilcoxona po korekcie wykaże różnicę tylko wtedy, gdy przewaga wariantu jest widoczna niemal na każdym systemie. Słabszy efekt raportujemy jako tendencję.
+  \item Badanie ma charakter eksploracyjny: raportujemy wielkość efektu, a nie tylko istotność.
+  \item Jeśli budżet pozwoli, zwiększamy liczbę systemów, a nie powtórzeń.
+\end{itemize}
+
+%=====================================================================
+\section{Skala i koszt}
+\label{sec:skala}
+
+Na jeden model LLM:
+\begin{itemize}
+  \item \textbf{Sekwencje:} $10 \text{ systemów} \times 6 \text{ kroków} \times 4 \text{ warianty} \times 5 \text{ powtórzeń} = 1200$ przebiegów, czyli około \textbf{2100 wywołań} (średnio 1{,}75 wywołania na przebieg).
+  \item \textbf{Zestaw Z:} około 25 przypadków konfliktowych i 8 pułapek, czyli $33 \times 4 \times 5 = 660$ przebiegów. To \textbf{do około 1500 wywołań}, bo M1 i M2 potrzebują tu do 3 wywołań (budowa scaffoldu, zmiana, model).
+  \item \textbf{Razem:} około \textbf{3600 wywołań} na model LLM. Przy dwóch modelach około 7200, bez ponowień.
+  \item \textbf{Opcjonalna ablacja} bez skryptu (nie wliczona powyżej): na 3 systemach $3 \times 6 \times 2 \times 5 = 180$ przebiegów, czyli około 360 wywołań.
+\end{itemize}
+
+%=====================================================================
+% \section{Część teoretyczna}
+% \label{sec:teoria}
+
+% Eksperyment obejmuje dwa typy scaffoldów. Zgodnie z materiałem profesora raport zawiera dodatkowo:
+% \begin{itemize}
+%   \item opis całej typologii scaffoldów;
+%   \item dla 2--3 dodatkowych typów (np.\ czasowego i normatywnego) przykład zapisany w formalizacji $\langle C, A, R, \Gamma, D\rangle$ wraz ze sprawdzeniem, czy spełnia definicję;
+%   \item wskazanie, gdzie definicja wymaga korekty;
+%   \item opis ograniczeń przyjętych założeń: pary warunków wyczerpujące i niezależne, jeden warunek na przejście, semantyka zamkniętego świata.
+% \end{itemize}
+
+%=====================================================================
+\section{Harmonogram}
+\label{sec:harmonogram}
+
+Kamienie milowe oznaczamy K1--K6, aby nie myliły się z wariantami M1 i M2.
+
+\begin{enumerate}[label=\textbf{K\arabic*.}]
+  \item \textbf{Dataset i ocena:} 10 systemów ze słownikami, sekwencje zmian, wzorce $\W$/$\Pz$ dla każdego kroku, testy wymagań, zestaw sprzeczności Z z pułapkami, skrypty oceniające. Najpierw jeden kompletny przykład (system zamówień: wymagania, oba scaffoldy, model JSON, jedna zwykła aktualizacja, jeden konflikt), który weryfikuje przyjęte definicje.
+  \item \textbf{Baseline'y:} warianty B1 i B2 generujące i aktualizujące modele.
+  \item \textbf{Scaffold oparty na kwadracie logicznym} (M1) wraz ze skryptem walidującym.
+  \item \textbf{Scaffold oparty na grafie ograniczeń} (M2) wraz ze skryptem walidującym.
+  \item \textbf{Przeprowadzenie eksperymentów} i zebranie wyników.
+  \item \textbf{Analiza wyników} i przygotowanie raportu, w tym części teoretycznej.
+\end{enumerate}
+
+%=====================================================================
+% \section{Pytania do profesora}
+% \label{sec:pytania}
+
+% \begin{enumerate}
+%   \item Materiał wspomina o wielu modelach LLM. Czy drugi model ma objąć cały dataset, czy wystarczy jego część, np.\ jako sprawdzenie, że wyniki się powtarzają?
+%   \item Jaki zakres części teoretycznej jest oczekiwany? Czy wystarczą przykłady 2--3 dodatkowych typów scaffoldów zapisane w formalizacji, bez eksperymentu na nich?
+% \end{enumerate}
+
+% %=====================================================================
+% \section{Odpowiedź na uwagi profesora}
+% \label{sec:odpowiedz}
+
+% \begin{enumerate}
+%   \item \textbf{„Nie wiadomo, co dokładnie jest scaffoldem.”} Oba scaffoldy są zdefiniowane w tej samej formalizacji $\langle C, A, R, \Gamma, D\rangle$. Mają wspólne $C$, $A$ i $D$, a różnią się tylko $R$ i $\Gamma$. Opisaliśmy, co zawierają, jak powstają (LLM buduje, skrypt sprawdza $\Gamma$) i jak są aktualizowane (różnica z operacjami na ID, ponowna walidacja, status \texttt{pending} przy konflikcie). Sekcja~\ref{sec:scaffoldy}.
+%   \item \textbf{„Nie określono artefaktu.”} Artefaktem jest uproszczona maszyna stanów UML zapisana w JSON, ze stałym słownikiem nazw, semantyką zamkniętego świata i zdefiniowanym determinizmem. Umożliwia to automatyczne porównanie ze wzorcem. Sekcja~\ref{sec:artefakt}.
+%   \item \textbf{„E1 i E3 dublują się.”} Połączyliśmy je w jeden eksperyment sekwencyjny (krok 0 i 5 zmian, pomiar po każdej). Pytanie z dawnego E2 realizujemy jako analizę według typów zmian. Dodaliśmy osobny zestaw sprzeczności, aby porównanie scaffoldów przy konfliktach miało wystarczającą liczbę przypadków. Sekcja~\ref{sec:dataset}.
+%   \item \textbf{„Metryki są nazwami, nie definicjami.”} Każda metryka ma definicję formalną. Regresja jest zdefiniowana funkcjonalnie (przez testy wymagań) i strukturalnie. Poprawność ustalamy względem wzorca ze zbiorami przejść wymaganych i dopuszczalnych. Przy sprzecznych wymaganiach poprawnym wynikiem jest wykrycie konfliktu i wstrzymanie aktualizacji. Halucynację operacjonalizujemy jawnie i wskazujemy różnicę względem definicji z materiału. Sekcja~\ref{sec:metryki}.
+%   \item \textbf{„Kontrola eksperymentu jest niewystarczająca.”} Ustaliliśmy: wspólny szablon promptu, liczbę wywołań (wariant kontrolny B2 o tym samym budżecie wywołań co scaffoldy), dostępny kontekst w każdym kroku, liczbę powtórzeń, temperaturę i wersję modelu. Wpływ walidatora kontroluje opcjonalna ablacja. Plan analizy obejmuje jednostkę analizy, korektę na porównania wielokrotne i podział na część potwierdzającą i eksploracyjną. Sekcje~\ref{sec:kontrola} i~\ref{sec:statystyka}.
+% \end{enumerate}
+
+\end{document}

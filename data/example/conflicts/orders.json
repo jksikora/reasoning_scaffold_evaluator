@@ -1,0 +1,65 @@
+{
+  "system": "orders",
+  "note": "PRZYKŁAD formatu zestawu Z. Bazą każdego przypadku są wymagania i wzorzec kroku 0.",
+  "cases": [
+    {
+      "id": "Z1",
+      "kind": "state",
+      "description": "Klienci chcą móc rezygnować z zamówienia także w trakcie dostawy.",
+      "add": [
+        {
+          "id": "R9",
+          "text": "Zamówienie w stanie Shipped można anulować (cancel); przechodzi wtedy do stanu Cancelled.",
+          "tests": [
+            {"type": "has_transition", "from": "Shipped", "event": "cancel", "to": "Cancelled"}
+          ]
+        }
+      ],
+      "conflicting": ["R5", "R9"]
+    },
+    {
+      "id": "Z2",
+      "kind": "transitive",
+      "description": "Anulowanie opłaconego zamówienia uzależniamy od stanu magazynu.",
+      "add": [
+        {
+          "id": "R10",
+          "text": "Anulowanie opłaconego zamówienia (cancel w stanie Paid) wymaga braku towaru w magazynie (out_of_stock), a brak towaru w magazynie jest stwierdzany dopiero po upływie 24 h (after_24h).",
+          "tests": [
+            {"type": "no_transition", "from": "Paid", "event": "cancel", "guard": "in_stock"}
+          ]
+        }
+      ],
+      "conflicting": ["R3", "R10"]
+    },
+    {
+      "id": "Z3",
+      "kind": "ordering",
+      "description": "Zmieniamy proces dostawy.",
+      "add": [
+        {
+          "id": "R11",
+          "text": "Zamówienie musi zostać dostarczone (stan Delivered), zanim zostanie wysłane (stan Shipped).",
+          "tests": [
+            {"type": "always_before", "state": "Shipped", "before": "Delivered"}
+          ]
+        }
+      ],
+      "conflicting": ["R6", "R11"]
+    },
+    {
+      "id": "Z4",
+      "kind": "trap",
+      "description": "Wysyłka zależy od dostępności towaru.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Wysłanie zamówienia (ship) wymaga, aby towar był w magazynie (in_stock).",
+          "tests": [
+            {"type": "has_transition", "from": "Paid", "event": "ship", "guard": "in_stock", "to": "Shipped"}
+          ]
+        }
+      ]
+    }
+  ]
+}

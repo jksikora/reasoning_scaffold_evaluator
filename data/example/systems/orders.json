@@ -1,0 +1,174 @@
+{
+  "system": "orders",
+  "note": "PRZYKŁAD formatu - nie wchodzi do eksperymentu (dane właściwe: data/main).",
+  "vocabulary": {
+    "states": ["New", "Paid", "Shipped", "Delivered", "Cancelled", "Returned"],
+    "events": ["pay", "cancel", "ship", "deliver", "return"],
+    "guards": ["before_24h", "after_24h", "in_stock", "out_of_stock"],
+    "exclusive": [
+      ["before_24h", "after_24h"],
+      ["in_stock", "out_of_stock"]
+    ]
+  },
+  "initial": "New",
+  "steps": [
+    {
+      "type": "initial",
+      "add": [
+        {
+          "id": "R1",
+          "text": "Zamówienie w stanie New można opłacić (pay); przechodzi wtedy do stanu Paid.",
+          "tests": [
+            {"type": "has_transition", "from": "New", "event": "pay", "guard": null, "to": "Paid"}
+          ]
+        },
+        {
+          "id": "R2",
+          "text": "Zamówienie w stanie New można anulować (cancel); przechodzi wtedy do stanu Cancelled.",
+          "tests": [
+            {"type": "has_transition", "from": "New", "event": "cancel", "guard": null, "to": "Cancelled"}
+          ]
+        },
+        {
+          "id": "R3",
+          "text": "Zamówienie w stanie Paid można anulować (cancel) tylko przed upływem 24 h (before_24h); przechodzi wtedy do stanu Cancelled.",
+          "tests": [
+            {"type": "has_transition", "from": "Paid", "event": "cancel", "guard": "before_24h", "to": "Cancelled"},
+            {"type": "no_transition", "from": "Paid", "event": "cancel", "guard": "after_24h"}
+          ]
+        },
+        {
+          "id": "R4",
+          "text": "Zamówienie w stanie Paid można wysłać (ship); przechodzi wtedy do stanu Shipped.",
+          "tests": [
+            {"type": "has_transition", "from": "Paid", "event": "ship", "to": "Shipped"}
+          ]
+        },
+        {
+          "id": "R5",
+          "text": "Zamówienia w stanie Shipped nie można anulować (cancel).",
+          "tests": [
+            {"type": "no_transition", "from": "Shipped", "event": "cancel"}
+          ]
+        },
+        {
+          "id": "R6",
+          "text": "Zamówienie w stanie Shipped zostaje dostarczone (deliver) i przechodzi do stanu Delivered.",
+          "tests": [
+            {"type": "has_transition", "from": "Shipped", "event": "deliver", "guard": null, "to": "Delivered"}
+          ]
+        }
+      ],
+      "W": [
+        ["New", "pay", null, "Paid"],
+        ["New", "cancel", null, "Cancelled"],
+        ["Paid", "cancel", "before_24h", "Cancelled"],
+        ["Paid", "ship", null, "Shipped"],
+        ["Shipped", "deliver", null, "Delivered"]
+      ],
+      "P": []
+    },
+    {
+      "type": "new_rule",
+      "description": "Wprowadzamy zwroty dostarczonych zamówień.",
+      "add": [
+        {
+          "id": "R7",
+          "text": "Zamówienie w stanie Delivered można zwrócić (return) przed upływem 24 h (before_24h); przechodzi wtedy do stanu Returned.",
+          "tests": [
+            {"type": "has_transition", "from": "Delivered", "event": "return", "guard": "before_24h", "to": "Returned"}
+          ]
+        }
+      ],
+      "W": [
+        ["New", "pay", null, "Paid"],
+        ["New", "cancel", null, "Cancelled"],
+        ["Paid", "cancel", "before_24h", "Cancelled"],
+        ["Paid", "ship", null, "Shipped"],
+        ["Shipped", "deliver", null, "Delivered"],
+        ["Delivered", "return", "before_24h", "Returned"]
+      ],
+      "P": [
+        ["Delivered", "return", "after_24h", "Returned"]
+      ]
+    },
+    {
+      "type": "new_dependency",
+      "description": "Wysyłka zależy od dostępności towaru.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Wysłanie zamówienia (ship) wymaga, aby towar był w magazynie (in_stock).",
+          "tests": [
+            {"type": "has_transition", "from": "Paid", "event": "ship", "guard": "in_stock", "to": "Shipped"},
+            {"type": "no_transition", "from": "Paid", "event": "ship", "guard": "out_of_stock"}
+          ]
+        }
+      ],
+      "affects": ["R4"],
+      "W": [
+        ["New", "pay", null, "Paid"],
+        ["New", "cancel", null, "Cancelled"],
+        ["Paid", "cancel", "before_24h", "Cancelled"],
+        ["Paid", "ship", "in_stock", "Shipped"],
+        ["Shipped", "deliver", null, "Delivered"],
+        ["Delivered", "return", "before_24h", "Returned"]
+      ],
+      "P": [
+        ["Delivered", "return", "after_24h", "Returned"]
+      ]
+    },
+    {
+      "type": "contradiction",
+      "kind": "state",
+      "description": "Klienci chcą móc rezygnować z zamówienia także w trakcie dostawy.",
+      "add": [
+        {
+          "id": "R9",
+          "text": "Zamówienie w stanie Shipped można anulować (cancel); przechodzi wtedy do stanu Cancelled.",
+          "tests": [
+            {"type": "has_transition", "from": "Shipped", "event": "cancel", "to": "Cancelled"}
+          ]
+        }
+      ],
+      "conflicting": ["R5", "R9"]
+    },
+    {
+      "type": "transition_change",
+      "description": "Znosimy limit czasu na anulowanie opłaconego zamówienia.",
+      "add": [
+        {
+          "id": "R3",
+          "text": "Zamówienie w stanie Paid można anulować (cancel) bez ograniczeń czasowych; przechodzi wtedy do stanu Cancelled.",
+          "tests": [
+            {"type": "has_transition", "from": "Paid", "event": "cancel", "guard": null, "to": "Cancelled"}
+          ]
+        }
+      ],
+      "W": [
+        ["New", "pay", null, "Paid"],
+        ["New", "cancel", null, "Cancelled"],
+        ["Paid", "cancel", null, "Cancelled"],
+        ["Paid", "ship", "in_stock", "Shipped"],
+        ["Shipped", "deliver", null, "Delivered"],
+        ["Delivered", "return", "before_24h", "Returned"]
+      ],
+      "P": [
+        ["Delivered", "return", "after_24h", "Returned"]
+      ]
+    },
+    {
+      "type": "removal",
+      "description": "Rezygnujemy ze zwrotów.",
+      "remove": ["R7"],
+      "W": [
+        ["New", "pay", null, "Paid"],
+        ["New", "cancel", null, "Cancelled"],
+        ["Paid", "cancel", null, "Cancelled"],
+        ["Paid", "ship", "in_stock", "Shipped"],
+        ["Shipped", "deliver", null, "Delivered"]
+      ],
+      "P": []
+    }
+  ]
+}

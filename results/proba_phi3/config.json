@@ -1,0 +1,16 @@
+{
+  "data": "data/example",
+  "variants": [
+    "B1",
+    "B2",
+    "M1",
+    "M2"
+  ],
+  "reps": 1,
+  "llm": {
+    "model": "phi3:mini",
+    "digest": "4f222292793889a9a40a020799cfd28d53f3e01af25d48e06c5e708610fc47e9",
+    "temperature": 0.2,
+    "num_ctx": 8192
+  }
+}
