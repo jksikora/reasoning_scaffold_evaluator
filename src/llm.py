@@ -16,14 +16,16 @@ NUM_CTX = int(os.getenv("OLLAMA_NUM_CTX", "8192"))
 # Ograniczenie długości odpowiedzi: przy wymuszonym JSON-ie mały model potrafi się zapętlić.
 NUM_PREDICT = int(os.getenv("OLLAMA_NUM_PREDICT", "4096"))
 
-_client = ollama.Client(host=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+_client = ollama.Client(host=BASE_URL)
 
 
 def model_info():
     """Dokładna wersja modelu (nazwa i skrót pliku) do zapisania w wynikach."""
     for m in _client.list().models:
         if m.model == MODEL:
-            return {"model": MODEL, "digest": m.digest, "temperature": TEMPERATURE, "num_ctx": NUM_CTX}
+            return {"model": MODEL, "digest": m.digest, "temperature": TEMPERATURE, "num_ctx": NUM_CTX,
+                    "num_predict": NUM_PREDICT, "base_url": BASE_URL}
     raise RuntimeError(f"Model {MODEL} nie jest dostępny w Ollamie (ollama pull {MODEL})")
 
 

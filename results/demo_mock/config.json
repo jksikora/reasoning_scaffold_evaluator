@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "data": "data/pilot",
+  "purpose": "pilot",
+  "variants": [
+    "B1",
+    "B2",
+    "M1",
+    "M2"
+  ],
+  "reps": 2,
+  "systems": [
+    "access",
+    "library",
+    "reservations"
+  ],
+  "steps": null,
+  "part": "all",
+  "llm": {
+    "model": "MOCK_DEMO_OFFLINE",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "temperature": 0.2,
+    "num_ctx": 8192,
+    "num_predict": 4096,
+    "base_url": "mock://offline"
+  },
+  "snapshot": "dataset_snapshot.json",
+  "dataset_hash": "3277928739d62cf08f71ab9d746cb796dda0f2accd52462369d2ec4f27a84b66",
+  "source_hashes": {
+    "src/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "src/analysis.py": "4e751d5353cd04788f920d4515369e6107cdfa1a49b5abe8db4c69d996eb261d",
+    "src/dataset.py": "9b60bae4f983ab1c6ff288b1e9b4dfc21f12d4415c7b1396b0fe6a8344ca709a",
+    "src/demo.py": "5ce9d4e6a071fccc318f5f3c790e7b5f3810260ea446bcf2ea1a0711400ace13",
+    "src/experiment.py": "257d25807080697dea094b6c5046945ee5eedffca5a1a6e8d64a4ac287467114",
+    "src/graph.py": "986865ea9fa7a19515037aa4185f4d1930046c62e29e6321bc6132008ffcc051",
+    "src/llm.py": "3ab526e43a40786b10236ee6806937603d4ae13149061da2633bc80e2a783cf3",
+    "src/metrics.py": "13ec1174eeae61198ddf99e1c1f5caaa6a4a0657a294b0e57046b1cbdc2e99c2",
+    "src/model.py": "3d394b2f11fd8ad59689fb815147fd71128d844197215bebb4d9ef3bd37611ed",
+    "src/prompts.py": "62aeb0a817f5766da161f32b137d4f64ad701925d397cd3a57d09592f5efc958",
+    "src/run.py": "a49ddf061e206784f1a67f90532c666ebecda200743f2682ba3068a3460c866a",
+    "src/scaffold.py": "e75a176b56e872fddbdbef1467a6bfaf9e2ed91e812064416e190e745df3bd4c",
+    "src/square.py": "e0c3738e9b09a291a7a91d8c6b7e5fd95468d532b8b630d4aba4d9321e096917",
+    "prompts/b1.md": "0f324fafe57335f17b77d70a09fa8d51b2dcf8cfe9dbe72f38e6bb2617dae580",
+    "prompts/b2_analysis.md": "9f2b1f6c2e953c96d3c2e59eb89452150c9cfa2ae52ccedc0b872f073bbd0da0",
+    "prompts/b2_model.md": "787a6dac977b3920fa8388c844bd96d8e1fbdcfa845fca9b4c2dee4369b1220c",
+    "prompts/m1_scaffold.md": "0170444c1f08da3041dfab83d3654aefd34f662bc400e66e89ab71bf294c3505",
+    "prompts/m2_scaffold.md": "fc2720e822caee05e27a31b3beb0dd6492d1c0ab1f3921a8e810598c5d7b581b",
+    "prompts/m_model.md": "55de90c1fed5953ed2e4b14ebff0482090f8286f21fe21d37f7a4c526522a6e1",
+    "prompts/template.md": "fad02d50859006950a16ccea065c6fd3bd82af1a54f1f72d77e17ee82e2d3973",
+    "requirements.txt": "bff7f917050437a57ac69cedb790f0c3148b46416ed789428b6030a11af73b65"
+  },
+  "runtime": {
+    "python": "3.12.7",
+    "packages": {
+      "ollama": "0.6.3",
+      "scipy": "1.18.1",
+      "matplotlib": "3.11.2",
+      "pytest": "9.2.0"
+    }
+  },
+  "fingerprint": "b41def09887f9fb5c0e776ebaf277f00b23d767625580650006b20deddeabad3"
+}

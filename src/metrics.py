@@ -46,12 +46,15 @@ def step_metrics(system, gold, k, rec, prev_rec):
     unnecessary = (Tp ^ T) - (add | delete)
     hallucinations = T - (W | P)
 
+    validation = sm.validation_errors(rec["model"], vocab, system["initial"])
     m = {
         "requirement_satisfaction": ratio(sum(passed.values()), len(passed)),
         "precision": precision,
         "recall": recall,
         "f1": f1,
-        "fully_correct": W <= T <= W | P,
+        "fully_correct": not validation and W <= T <= W | P,
+        "model_valid": not validation,
+        "model_validation_errors": len(validation),
         "add_coverage": ratio(len(add & T), len(add)),
         "delete_coverage": ratio(len(delete - T), len(delete)),
         "functional_regressions": sum(
@@ -63,7 +66,7 @@ def step_metrics(system, gold, k, rec, prev_rec):
         ) if k > 0 else 0,
         "hallucinations": len(hallucinations),
         "unnecessary_changes": len(unnecessary),
-        "model_issues": len(rec.get("model_issues", [])),
+        "model_issues": len(sm.semantic_issues(rec["model"], vocab, system["initial"])),
     }
 
     if "scaffold" in rec:  # warianty M1/M2

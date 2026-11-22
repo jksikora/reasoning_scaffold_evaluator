@@ -1,0 +1,97 @@
+system,case,kind,variant,rep,result,conflicting,llm_calls,retries,tokens,seconds
+access,Z1,state,B1,0,CONFLICT,R4 R8,1,0,150,0.1
+access,Z1,state,B1,1,CONFLICT,R4 R8,1,0,150,0.1
+access,Z1,state,B2,0,CONFLICT,R4 R8,2,0,300,0.2
+access,Z1,state,B2,1,CONFLICT,R4 R8,2,0,300,0.2
+access,Z1,state,M1,0,CONFLICT,R4 R8,2,0,300,0.2
+access,Z1,state,M1,1,CONFLICT,R4 R8,2,0,300,0.2
+access,Z1,state,M2,0,CONFLICT,R4 R8,2,0,300,0.2
+access,Z1,state,M2,1,CONFLICT,R4 R8,2,0,300,0.2
+access,Z2,transitive,B1,0,CONFLICT,R2 R9,1,0,150,0.1
+access,Z2,transitive,B1,1,CONFLICT,R2 R9,1,0,150,0.1
+access,Z2,transitive,B2,0,CONFLICT,R2 R9,2,0,300,0.2
+access,Z2,transitive,B2,1,CONFLICT,R2 R9,2,0,300,0.2
+access,Z2,transitive,M1,0,OK,,2,0,300,0.2
+access,Z2,transitive,M1,1,OK,,2,0,300,0.2
+access,Z2,transitive,M2,0,CONFLICT,R2 R9,2,0,300,0.2
+access,Z2,transitive,M2,1,CONFLICT,R2 R9,2,0,300,0.2
+access,Z3,ordering,B1,0,CONFLICT,R5 R10,1,0,150,0.1
+access,Z3,ordering,B1,1,CONFLICT,R5 R10,1,0,150,0.1
+access,Z3,ordering,B2,0,CONFLICT,R5 R10,2,0,300,0.2
+access,Z3,ordering,B2,1,CONFLICT,R5 R10,2,0,300,0.2
+access,Z3,ordering,M1,0,OK,,2,0,300,0.2
+access,Z3,ordering,M1,1,OK,,2,0,300,0.2
+access,Z3,ordering,M2,0,CONFLICT,R10 R5,2,0,300,0.2
+access,Z3,ordering,M2,1,CONFLICT,R10 R5,2,0,300,0.2
+access,Z4,trap,B1,0,OK,,1,0,150,0.1
+access,Z4,trap,B1,1,OK,,1,0,150,0.1
+access,Z4,trap,B2,0,OK,,2,0,300,0.2
+access,Z4,trap,B2,1,OK,,2,0,300,0.2
+access,Z4,trap,M1,0,OK,,2,0,300,0.2
+access,Z4,trap,M1,1,OK,,2,0,300,0.2
+access,Z4,trap,M2,0,OK,,2,0,300,0.2
+access,Z4,trap,M2,1,OK,,2,0,300,0.2
+library,Z1,state,B1,0,CONFLICT,R4 R8,1,0,150,0.1
+library,Z1,state,B1,1,CONFLICT,R4 R8,1,0,150,0.1
+library,Z1,state,B2,0,CONFLICT,R4 R8,2,0,300,0.2
+library,Z1,state,B2,1,CONFLICT,R4 R8,2,0,300,0.2
+library,Z1,state,M1,0,CONFLICT,R4 R8,2,0,300,0.2
+library,Z1,state,M1,1,CONFLICT,R4 R8,2,0,300,0.2
+library,Z1,state,M2,0,CONFLICT,R4 R8,2,0,300,0.2
+library,Z1,state,M2,1,CONFLICT,R4 R8,2,0,300,0.2
+library,Z2,transitive,B1,0,CONFLICT,R2 R9,1,0,150,0.1
+library,Z2,transitive,B1,1,CONFLICT,R2 R9,1,0,150,0.1
+library,Z2,transitive,B2,0,CONFLICT,R2 R9,2,0,300,0.2
+library,Z2,transitive,B2,1,CONFLICT,R2 R9,2,0,300,0.2
+library,Z2,transitive,M1,0,OK,,2,0,300,0.2
+library,Z2,transitive,M1,1,OK,,2,0,300,0.2
+library,Z2,transitive,M2,0,CONFLICT,R2 R9,2,0,300,0.2
+library,Z2,transitive,M2,1,CONFLICT,R2 R9,2,0,300,0.2
+library,Z3,ordering,B1,0,CONFLICT,R5 R10,1,0,150,0.1
+library,Z3,ordering,B1,1,CONFLICT,R5 R10,1,0,150,0.1
+library,Z3,ordering,B2,0,CONFLICT,R5 R10,2,0,300,0.2
+library,Z3,ordering,B2,1,CONFLICT,R5 R10,2,0,300,0.2
+library,Z3,ordering,M1,0,OK,,2,0,300,0.2
+library,Z3,ordering,M1,1,OK,,2,0,300,0.2
+library,Z3,ordering,M2,0,CONFLICT,R10 R5,2,0,300,0.2
+library,Z3,ordering,M2,1,CONFLICT,R10 R5,2,0,300,0.2
+library,Z4,trap,B1,0,OK,,1,0,150,0.1
+library,Z4,trap,B1,1,OK,,1,0,150,0.1
+library,Z4,trap,B2,0,OK,,2,0,300,0.2
+library,Z4,trap,B2,1,OK,,2,0,300,0.2
+library,Z4,trap,M1,0,OK,,2,0,300,0.2
+library,Z4,trap,M1,1,OK,,2,0,300,0.2
+library,Z4,trap,M2,0,OK,,2,0,300,0.2
+library,Z4,trap,M2,1,OK,,2,0,300,0.2
+reservations,Z1,state,B1,0,CONFLICT,R4 R8,1,0,150,0.1
+reservations,Z1,state,B1,1,CONFLICT,R4 R8,1,0,150,0.1
+reservations,Z1,state,B2,0,CONFLICT,R4 R8,2,0,300,0.2
+reservations,Z1,state,B2,1,CONFLICT,R4 R8,2,0,300,0.2
+reservations,Z1,state,M1,0,CONFLICT,R4 R8,2,0,300,0.2
+reservations,Z1,state,M1,1,CONFLICT,R4 R8,2,0,300,0.2
+reservations,Z1,state,M2,0,CONFLICT,R4 R8,2,0,300,0.2
+reservations,Z1,state,M2,1,CONFLICT,R4 R8,2,0,300,0.2
+reservations,Z2,transitive,B1,0,CONFLICT,R2 R9,1,0,150,0.1
+reservations,Z2,transitive,B1,1,CONFLICT,R2 R9,1,0,150,0.1
+reservations,Z2,transitive,B2,0,CONFLICT,R2 R9,2,0,300,0.2
+reservations,Z2,transitive,B2,1,CONFLICT,R2 R9,2,0,300,0.2
+reservations,Z2,transitive,M1,0,OK,,2,0,300,0.2
+reservations,Z2,transitive,M1,1,OK,,2,0,300,0.2
+reservations,Z2,transitive,M2,0,CONFLICT,R2 R9,2,0,300,0.2
+reservations,Z2,transitive,M2,1,CONFLICT,R2 R9,2,0,300,0.2
+reservations,Z3,ordering,B1,0,CONFLICT,R5 R10,1,0,150,0.1
+reservations,Z3,ordering,B1,1,CONFLICT,R5 R10,1,0,150,0.1
+reservations,Z3,ordering,B2,0,CONFLICT,R5 R10,2,0,300,0.2
+reservations,Z3,ordering,B2,1,CONFLICT,R5 R10,2,0,300,0.2
+reservations,Z3,ordering,M1,0,OK,,2,0,300,0.2
+reservations,Z3,ordering,M1,1,OK,,2,0,300,0.2
+reservations,Z3,ordering,M2,0,CONFLICT,R10 R5,2,0,300,0.2
+reservations,Z3,ordering,M2,1,CONFLICT,R10 R5,2,0,300,0.2
+reservations,Z4,trap,B1,0,OK,,1,0,150,0.1
+reservations,Z4,trap,B1,1,OK,,1,0,150,0.1
+reservations,Z4,trap,B2,0,OK,,2,0,300,0.2
+reservations,Z4,trap,B2,1,OK,,2,0,300,0.2
+reservations,Z4,trap,M1,0,OK,,2,0,300,0.2
+reservations,Z4,trap,M1,1,OK,,2,0,300,0.2
+reservations,Z4,trap,M2,0,OK,,2,0,300,0.2
+reservations,Z4,trap,M2,1,OK,,2,0,300,0.2

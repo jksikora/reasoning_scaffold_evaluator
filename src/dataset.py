@@ -25,6 +25,8 @@ def load_conflicts(directory):
     result = {}
     for p in sorted(Path(directory, "conflicts").glob("*.json")):
         data = load_system(p)
+        if data["system"] in result:
+            raise ValueError(f"Powtórzony zestaw Z dla {data['system']}")
         result[data["system"]] = data["cases"]
     return result
 
@@ -84,6 +86,11 @@ def check_transition(t, vocab):
 
 
 def check_change(change, known_ids, errors, where):
+    if change.get("type") != "initial" and not isinstance(change.get("description"), str):
+        errors.append(f"{where}: brak opisu zmiany")
+    added_ids = [r["id"] for r in change.get("add", [])]
+    if len(added_ids) != len(set(added_ids)):
+        errors.append(f"{where}: powtórzone ID dodawanych wymagań")
     for r in change.get("add", []):
         if not r.get("id") or not r.get("text") or not r.get("tests"):
             errors.append(f"{where}: wymaganie bez id/text/tests: {r}")
@@ -130,6 +137,7 @@ def validate_system(system):
                 errors.append(f"{where}: przejście spoza słownika {t}")
         # Kontrola spójności wzorca: model złożony z W musi przechodzić wszystkie testy.
         m = gold_model(system, gold["W"])
+        errors += [f"{where}: wzorzec: {e}" for e in sm.validation_errors(m, vocab, system["initial"])]
         for r in requirements:
             if not sm.requirement_passes(r, m, vocab):
                 errors.append(f"{where}: model z W nie spełnia testów wymagania {r['id']}")
@@ -153,22 +161,47 @@ def validate_cases(system, cases):
     return errors
 
 
+def validated_load(directory, selected=None):
+    """Wczytuje i waliduje wybrane systemy przed utworzeniem przebiegu."""
+    try:
+        all_systems = load_systems(directory)
+        if not all_systems:
+            raise ValueError(f"Brak systemów JSON w {directory}/systems")
+        names = [s["system"] for s in all_systems]
+        if len(names) != len(set(names)):
+            raise ValueError("Powtórzone nazwy systemów")
+        unknown = set(selected or []) - set(names)
+        if unknown:
+            raise ValueError(f"Nieznane systemy: {', '.join(sorted(unknown))}")
+        systems = [s for s in all_systems if not selected or s["system"] in selected]
+        conflicts = load_conflicts(directory)
+        orphaned = conflicts.keys() - set(names)
+        if orphaned:
+            raise ValueError(f"Zestaw Z bez systemu: {', '.join(sorted(orphaned))}")
+        errors = []
+        for system in systems:
+            name = system["system"]
+            errors += [f"{name}: {e}" for e in validate_system(system)]
+            cases = conflicts.get(name, [])
+            if len({c["id"] for c in cases}) != len(cases):
+                errors.append(f"{name}: powtórzone ID przypadków Z")
+            errors += [f"{name}: {e}" for e in validate_cases(system, cases)]
+        if errors:
+            raise ValueError("Błędy datasetu:\n" + "\n".join(errors))
+        return systems, {s["system"]: conflicts.get(s["system"], []) for s in systems}
+    except (KeyError, TypeError, IndexError, AttributeError) as e:
+        raise ValueError(f"Niepoprawna struktura datasetu: {e}") from e
+
+
 def main(directory):
-    systems = {s["system"]: s for s in load_systems(directory)}
-    conflicts = load_conflicts(directory)
-    ok = True
-    for name, system in systems.items():
-        errors = validate_system(system)
-        if name in conflicts:
-            errors += validate_cases(system, conflicts[name])
-        print(f"{name}: {'OK' if not errors else 'BŁĘDY'}")
-        for e in errors:
-            print("  -", e)
-        ok = ok and not errors
-    for name in conflicts.keys() - systems.keys():
-        print(f"{name}: zestaw Z bez pliku systemu")
-        ok = False
-    return ok
+    try:
+        systems, _ = validated_load(directory)
+    except (ValueError, OSError) as e:
+        print(e)
+        return False
+    for system in systems:
+        print(f"{system['system']}: OK")
+    return True
 
 
 if __name__ == "__main__":

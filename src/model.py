@@ -18,7 +18,10 @@ def shape_errors(model):
             errors.append(f"brak listy '{key}'")
     if not isinstance(model.get("initial"), str):
         errors.append("brak pola 'initial'")
-    for t in model.get("transitions") or []:
+    for key in ("states", "final"):
+        if isinstance(model.get(key), list) and not all(isinstance(x, str) for x in model[key]):
+            errors.append(f"lista '{key}' musi zawierać nazwy stanów")
+    for t in model.get("transitions", []) if isinstance(model.get("transitions"), list) else []:
         if not isinstance(t, dict) or any(k not in t for k in ("from", "event", "guard", "to")):
             errors.append(f"niepoprawne przejście: {t}")
         elif not all(isinstance(t[k], str) for k in ("from", "event", "to")) or not (
@@ -32,11 +35,29 @@ def exclusive(g1, g2, vocabulary):
     return [g1, g2] in vocabulary["exclusive"] or [g2, g1] in vocabulary["exclusive"]
 
 
-def semantic_issues(model, vocabulary):
-    """Problemy merytoryczne modelu. Nie blokują przyjęcia modelu, są tylko logowane."""
-    issues = []
+def validation_errors(model, vocabulary, expected_initial=None):
+    """Błędy maszyny; nie zmieniają surowych testów wymagań ani historii wariantu."""
+    issues = shape_errors(model)
+    if issues:
+        return issues
+    states = set(model["states"])
+    for key in ("states", "final"):
+        if len(model[key]) != len(set(model[key])):
+            issues.append(f"powtórzone stany w {key}")
+    if not states:
+        issues.append("pusta lista stanów")
+    if not states <= set(vocabulary["states"]):
+        issues.append("zadeklarowane stany spoza słownika")
+    if model["initial"] not in states:
+        issues.append("stan początkowy nie jest zadeklarowany")
+    if expected_initial is not None and model["initial"] != expected_initial:
+        issues.append("stan początkowy niezgodny z systemem")
+    if not set(model["final"]) <= states:
+        issues.append("stany końcowe nie są zadeklarowane")
     for t in sorted(transitions(model), key=str):
         s, e, g, d = t
+        if s not in states or d not in states:
+            issues.append(f"koniec przejścia nie jest zadeklarowany: {t}")
         if s not in vocabulary["states"] or d not in vocabulary["states"]:
             issues.append(f"stan spoza słownika: {t}")
         if e not in vocabulary["events"]:
@@ -51,6 +72,14 @@ def semantic_issues(model, vocabulary):
             if a[:2] == b[:2] and not (a[2] and b[2] and exclusive(a[2], b[2], vocabulary)):
                 issues.append(f"niedeterminizm: {a} i {b}")
 
+    return issues
+
+
+def semantic_issues(model, vocabulary, expected_initial=None):
+    """Błędy walidacji i ostrzeżenia o osiągalności; nie blokują przyjęcia modelu."""
+    issues = validation_errors(model, vocabulary, expected_initial)
+    if shape_errors(model):
+        return issues
     # Założenie egzystencjalne kwadratu: każdy stan modelu jest osiągalny.
     unreachable = set(model["states"]) - reachable(model)
     if unreachable:
