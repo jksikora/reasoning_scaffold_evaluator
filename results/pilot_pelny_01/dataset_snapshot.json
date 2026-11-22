@@ -1,0 +1,1290 @@
+{
+  "systems": [
+    {
+      "system": "access",
+      "purpose": "pilot",
+      "note": "Dane pilotażowe; nie stanowią eksperymentu głównego.",
+      "vocabulary": {
+        "states": [
+          "Pending",
+          "Verified",
+          "Active",
+          "Closed",
+          "Revoked",
+          "Archived"
+        ],
+        "events": [
+          "verify",
+          "activate",
+          "close",
+          "revoke",
+          "archive"
+        ],
+        "guards": [
+          "approval_granted",
+          "approval_denied",
+          "service_online",
+          "service_offline"
+        ],
+        "exclusive": [
+          [
+            "approval_granted",
+            "approval_denied"
+          ],
+          [
+            "service_online",
+            "service_offline"
+          ]
+        ]
+      },
+      "initial": "Pending",
+      "steps": [
+        {
+          "type": "initial",
+          "add": [
+            {
+              "id": "R1",
+              "text": "W procesie uprawnienia dostępu: z Pending zdarzenie verify prowadzi do Verified; dalsze reguły mogą ograniczać jego dostępność.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Pending",
+                  "event": "verify",
+                  "to": "Verified"
+                }
+              ]
+            },
+            {
+              "id": "R2",
+              "text": "Z Verified zdarzenie activate prowadzi do Active wtedy i tylko wtedy, gdy zachodzi approval_granted.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Verified",
+                  "event": "activate",
+                  "guard": "approval_granted",
+                  "to": "Active"
+                },
+                {
+                  "type": "no_transition",
+                  "from": "Verified",
+                  "event": "activate",
+                  "guard": "approval_denied"
+                }
+              ]
+            },
+            {
+              "id": "R3",
+              "text": "Z Active zdarzenie close prowadzi do Closed; dalsze reguły mogą ograniczać jego dostępność.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Active",
+                  "event": "close",
+                  "to": "Closed"
+                }
+              ]
+            },
+            {
+              "id": "R4",
+              "text": "W stanie Active zdarzenie revoke jest zabronione.",
+              "tests": [
+                {
+                  "type": "no_transition",
+                  "from": "Active",
+                  "event": "revoke"
+                }
+              ]
+            },
+            {
+              "id": "R5",
+              "text": "Stan Closed jest osiągalny; każda droga do niego musi przejść przez Active.",
+              "tests": [
+                {
+                  "type": "reachable",
+                  "state": "Closed"
+                },
+                {
+                  "type": "always_before",
+                  "state": "Closed",
+                  "before": "Active"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Pending",
+              "verify",
+              null,
+              "Verified"
+            ],
+            [
+              "Verified",
+              "activate",
+              "approval_granted",
+              "Active"
+            ],
+            [
+              "Active",
+              "close",
+              null,
+              "Closed"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "transition_change",
+          "description": "Usuwamy ograniczenie approval_granted dla activate.",
+          "add": [
+            {
+              "id": "R2",
+              "text": "Z Verified zdarzenie activate bez warunku prowadzi do Active.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Verified",
+                  "event": "activate",
+                  "guard": null,
+                  "to": "Active"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Pending",
+              "verify",
+              null,
+              "Verified"
+            ],
+            [
+              "Verified",
+              "activate",
+              null,
+              "Active"
+            ],
+            [
+              "Active",
+              "close",
+              null,
+              "Closed"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "contradiction",
+          "description": "Żądamy revoke w Active, zachowując dotychczasowy zakaz.",
+          "add": [
+            {
+              "id": "R8",
+              "text": "Z Active zdarzenie revoke ma być dozwolone i prowadzić do Revoked.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Active",
+                  "event": "revoke",
+                  "to": "Revoked"
+                }
+              ]
+            }
+          ],
+          "kind": "state",
+          "conflicting": [
+            "R4",
+            "R8"
+          ]
+        },
+        {
+          "type": "new_rule",
+          "description": "Dodajemy czynność po zakończeniu procesu.",
+          "add": [
+            {
+              "id": "R6",
+              "text": "Z Closed zdarzenie archive bez warunku prowadzi do Archived.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Closed",
+                  "event": "archive",
+                  "guard": null,
+                  "to": "Archived"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Pending",
+              "verify",
+              null,
+              "Verified"
+            ],
+            [
+              "Verified",
+              "activate",
+              null,
+              "Active"
+            ],
+            [
+              "Active",
+              "close",
+              null,
+              "Closed"
+            ],
+            [
+              "Closed",
+              "archive",
+              null,
+              "Archived"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "new_dependency",
+          "description": "Uzależniamy verify od service_online.",
+          "add": [
+            {
+              "id": "R7",
+              "text": "Zdarzenie verify w Pending jest dozwolone tylko przy service_online, a wtedy prowadzi do Verified.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Pending",
+                  "event": "verify",
+                  "guard": "service_online",
+                  "to": "Verified"
+                },
+                {
+                  "type": "no_transition",
+                  "from": "Pending",
+                  "event": "verify",
+                  "guard": "service_offline"
+                }
+              ]
+            }
+          ],
+          "affects": [
+            "R1"
+          ],
+          "W": [
+            [
+              "Pending",
+              "verify",
+              "service_online",
+              "Verified"
+            ],
+            [
+              "Verified",
+              "activate",
+              null,
+              "Active"
+            ],
+            [
+              "Active",
+              "close",
+              null,
+              "Closed"
+            ],
+            [
+              "Closed",
+              "archive",
+              null,
+              "Archived"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "removal",
+          "description": "Usuwamy czynność po zakończeniu procesu.",
+          "remove": [
+            "R6"
+          ],
+          "W": [
+            [
+              "Pending",
+              "verify",
+              "service_online",
+              "Verified"
+            ],
+            [
+              "Verified",
+              "activate",
+              null,
+              "Active"
+            ],
+            [
+              "Active",
+              "close",
+              null,
+              "Closed"
+            ]
+          ],
+          "P": []
+        }
+      ]
+    },
+    {
+      "system": "library",
+      "purpose": "pilot",
+      "note": "Dane pilotażowe; nie stanowią eksperymentu głównego.",
+      "vocabulary": {
+        "states": [
+          "Requested",
+          "Reserved",
+          "Borrowed",
+          "Returned",
+          "Cancelled",
+          "Rated"
+        ],
+        "events": [
+          "reserve",
+          "borrow",
+          "return",
+          "cancel",
+          "rate"
+        ],
+        "guards": [
+          "member_active",
+          "member_inactive",
+          "copy_available",
+          "copy_unavailable"
+        ],
+        "exclusive": [
+          [
+            "member_active",
+            "member_inactive"
+          ],
+          [
+            "copy_available",
+            "copy_unavailable"
+          ]
+        ]
+      },
+      "initial": "Requested",
+      "steps": [
+        {
+          "type": "initial",
+          "add": [
+            {
+              "id": "R1",
+              "text": "W procesie wypożyczenia bibliotecznego: z Requested zdarzenie reserve prowadzi do Reserved; dalsze reguły mogą ograniczać jego dostępność.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Requested",
+                  "event": "reserve",
+                  "to": "Reserved"
+                }
+              ]
+            },
+            {
+              "id": "R2",
+              "text": "Z Reserved zdarzenie borrow prowadzi do Borrowed wtedy i tylko wtedy, gdy zachodzi member_active.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Reserved",
+                  "event": "borrow",
+                  "guard": "member_active",
+                  "to": "Borrowed"
+                },
+                {
+                  "type": "no_transition",
+                  "from": "Reserved",
+                  "event": "borrow",
+                  "guard": "member_inactive"
+                }
+              ]
+            },
+            {
+              "id": "R3",
+              "text": "Z Borrowed zdarzenie return prowadzi do Returned; dalsze reguły mogą ograniczać jego dostępność.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Borrowed",
+                  "event": "return",
+                  "to": "Returned"
+                }
+              ]
+            },
+            {
+              "id": "R4",
+              "text": "W stanie Borrowed zdarzenie cancel jest zabronione.",
+              "tests": [
+                {
+                  "type": "no_transition",
+                  "from": "Borrowed",
+                  "event": "cancel"
+                }
+              ]
+            },
+            {
+              "id": "R5",
+              "text": "Stan Returned jest osiągalny; każda droga do niego musi przejść przez Borrowed.",
+              "tests": [
+                {
+                  "type": "reachable",
+                  "state": "Returned"
+                },
+                {
+                  "type": "always_before",
+                  "state": "Returned",
+                  "before": "Borrowed"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Requested",
+              "reserve",
+              null,
+              "Reserved"
+            ],
+            [
+              "Reserved",
+              "borrow",
+              "member_active",
+              "Borrowed"
+            ],
+            [
+              "Borrowed",
+              "return",
+              null,
+              "Returned"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "new_dependency",
+          "description": "Uzależniamy reserve od copy_available.",
+          "add": [
+            {
+              "id": "R7",
+              "text": "Zdarzenie reserve w Requested jest dozwolone tylko przy copy_available, a wtedy prowadzi do Reserved.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Requested",
+                  "event": "reserve",
+                  "guard": "copy_available",
+                  "to": "Reserved"
+                },
+                {
+                  "type": "no_transition",
+                  "from": "Requested",
+                  "event": "reserve",
+                  "guard": "copy_unavailable"
+                }
+              ]
+            }
+          ],
+          "affects": [
+            "R1"
+          ],
+          "W": [
+            [
+              "Requested",
+              "reserve",
+              "copy_available",
+              "Reserved"
+            ],
+            [
+              "Reserved",
+              "borrow",
+              "member_active",
+              "Borrowed"
+            ],
+            [
+              "Borrowed",
+              "return",
+              null,
+              "Returned"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "transition_change",
+          "description": "Usuwamy ograniczenie member_active dla borrow.",
+          "add": [
+            {
+              "id": "R2",
+              "text": "Z Reserved zdarzenie borrow bez warunku prowadzi do Borrowed.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Reserved",
+                  "event": "borrow",
+                  "guard": null,
+                  "to": "Borrowed"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Requested",
+              "reserve",
+              "copy_available",
+              "Reserved"
+            ],
+            [
+              "Reserved",
+              "borrow",
+              null,
+              "Borrowed"
+            ],
+            [
+              "Borrowed",
+              "return",
+              null,
+              "Returned"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "new_rule",
+          "description": "Dodajemy czynność po zakończeniu procesu.",
+          "add": [
+            {
+              "id": "R6",
+              "text": "Z Returned zdarzenie rate bez warunku prowadzi do Rated.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Returned",
+                  "event": "rate",
+                  "guard": null,
+                  "to": "Rated"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Requested",
+              "reserve",
+              "copy_available",
+              "Reserved"
+            ],
+            [
+              "Reserved",
+              "borrow",
+              null,
+              "Borrowed"
+            ],
+            [
+              "Borrowed",
+              "return",
+              null,
+              "Returned"
+            ],
+            [
+              "Returned",
+              "rate",
+              null,
+              "Rated"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "removal",
+          "description": "Usuwamy czynność po zakończeniu procesu.",
+          "remove": [
+            "R6"
+          ],
+          "W": [
+            [
+              "Requested",
+              "reserve",
+              "copy_available",
+              "Reserved"
+            ],
+            [
+              "Reserved",
+              "borrow",
+              null,
+              "Borrowed"
+            ],
+            [
+              "Borrowed",
+              "return",
+              null,
+              "Returned"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "contradiction",
+          "description": "Żądamy cancel w Borrowed, zachowując dotychczasowy zakaz.",
+          "add": [
+            {
+              "id": "R8",
+              "text": "Z Borrowed zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Borrowed",
+                  "event": "cancel",
+                  "to": "Cancelled"
+                }
+              ]
+            }
+          ],
+          "kind": "state",
+          "conflicting": [
+            "R4",
+            "R8"
+          ]
+        }
+      ]
+    },
+    {
+      "system": "reservations",
+      "purpose": "pilot",
+      "note": "Dane pilotażowe; nie stanowią eksperymentu głównego.",
+      "vocabulary": {
+        "states": [
+          "Requested",
+          "Confirmed",
+          "CheckedIn",
+          "Completed",
+          "Cancelled",
+          "Reviewed"
+        ],
+        "events": [
+          "confirm",
+          "check_in",
+          "complete",
+          "cancel",
+          "review"
+        ],
+        "guards": [
+          "deposit_paid",
+          "deposit_unpaid",
+          "staff_available",
+          "staff_unavailable"
+        ],
+        "exclusive": [
+          [
+            "deposit_paid",
+            "deposit_unpaid"
+          ],
+          [
+            "staff_available",
+            "staff_unavailable"
+          ]
+        ]
+      },
+      "initial": "Requested",
+      "steps": [
+        {
+          "type": "initial",
+          "add": [
+            {
+              "id": "R1",
+              "text": "W procesie rezerwacji: z Requested zdarzenie confirm prowadzi do Confirmed; dalsze reguły mogą ograniczać jego dostępność.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Requested",
+                  "event": "confirm",
+                  "to": "Confirmed"
+                }
+              ]
+            },
+            {
+              "id": "R2",
+              "text": "Z Confirmed zdarzenie check_in prowadzi do CheckedIn wtedy i tylko wtedy, gdy zachodzi deposit_paid.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Confirmed",
+                  "event": "check_in",
+                  "guard": "deposit_paid",
+                  "to": "CheckedIn"
+                },
+                {
+                  "type": "no_transition",
+                  "from": "Confirmed",
+                  "event": "check_in",
+                  "guard": "deposit_unpaid"
+                }
+              ]
+            },
+            {
+              "id": "R3",
+              "text": "Z CheckedIn zdarzenie complete prowadzi do Completed; dalsze reguły mogą ograniczać jego dostępność.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "CheckedIn",
+                  "event": "complete",
+                  "to": "Completed"
+                }
+              ]
+            },
+            {
+              "id": "R4",
+              "text": "W stanie CheckedIn zdarzenie cancel jest zabronione.",
+              "tests": [
+                {
+                  "type": "no_transition",
+                  "from": "CheckedIn",
+                  "event": "cancel"
+                }
+              ]
+            },
+            {
+              "id": "R5",
+              "text": "Stan Completed jest osiągalny; każda droga do niego musi przejść przez CheckedIn.",
+              "tests": [
+                {
+                  "type": "reachable",
+                  "state": "Completed"
+                },
+                {
+                  "type": "always_before",
+                  "state": "Completed",
+                  "before": "CheckedIn"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Requested",
+              "confirm",
+              null,
+              "Confirmed"
+            ],
+            [
+              "Confirmed",
+              "check_in",
+              "deposit_paid",
+              "CheckedIn"
+            ],
+            [
+              "CheckedIn",
+              "complete",
+              null,
+              "Completed"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "new_rule",
+          "description": "Dodajemy czynność po zakończeniu procesu.",
+          "add": [
+            {
+              "id": "R6",
+              "text": "Z Completed zdarzenie review bez warunku prowadzi do Reviewed.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Completed",
+                  "event": "review",
+                  "guard": null,
+                  "to": "Reviewed"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Requested",
+              "confirm",
+              null,
+              "Confirmed"
+            ],
+            [
+              "Confirmed",
+              "check_in",
+              "deposit_paid",
+              "CheckedIn"
+            ],
+            [
+              "CheckedIn",
+              "complete",
+              null,
+              "Completed"
+            ],
+            [
+              "Completed",
+              "review",
+              null,
+              "Reviewed"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "new_dependency",
+          "description": "Uzależniamy confirm od staff_available.",
+          "add": [
+            {
+              "id": "R7",
+              "text": "Zdarzenie confirm w Requested jest dozwolone tylko przy staff_available, a wtedy prowadzi do Confirmed.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Requested",
+                  "event": "confirm",
+                  "guard": "staff_available",
+                  "to": "Confirmed"
+                },
+                {
+                  "type": "no_transition",
+                  "from": "Requested",
+                  "event": "confirm",
+                  "guard": "staff_unavailable"
+                }
+              ]
+            }
+          ],
+          "affects": [
+            "R1"
+          ],
+          "W": [
+            [
+              "Requested",
+              "confirm",
+              "staff_available",
+              "Confirmed"
+            ],
+            [
+              "Confirmed",
+              "check_in",
+              "deposit_paid",
+              "CheckedIn"
+            ],
+            [
+              "CheckedIn",
+              "complete",
+              null,
+              "Completed"
+            ],
+            [
+              "Completed",
+              "review",
+              null,
+              "Reviewed"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "contradiction",
+          "description": "Żądamy cancel w CheckedIn, zachowując dotychczasowy zakaz.",
+          "add": [
+            {
+              "id": "R8",
+              "text": "Z CheckedIn zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "CheckedIn",
+                  "event": "cancel",
+                  "to": "Cancelled"
+                }
+              ]
+            }
+          ],
+          "kind": "state",
+          "conflicting": [
+            "R4",
+            "R8"
+          ]
+        },
+        {
+          "type": "transition_change",
+          "description": "Usuwamy ograniczenie deposit_paid dla check_in.",
+          "add": [
+            {
+              "id": "R2",
+              "text": "Z Confirmed zdarzenie check_in bez warunku prowadzi do CheckedIn.",
+              "tests": [
+                {
+                  "type": "has_transition",
+                  "from": "Confirmed",
+                  "event": "check_in",
+                  "guard": null,
+                  "to": "CheckedIn"
+                }
+              ]
+            }
+          ],
+          "W": [
+            [
+              "Requested",
+              "confirm",
+              "staff_available",
+              "Confirmed"
+            ],
+            [
+              "Confirmed",
+              "check_in",
+              null,
+              "CheckedIn"
+            ],
+            [
+              "CheckedIn",
+              "complete",
+              null,
+              "Completed"
+            ],
+            [
+              "Completed",
+              "review",
+              null,
+              "Reviewed"
+            ]
+          ],
+          "P": []
+        },
+        {
+          "type": "removal",
+          "description": "Usuwamy czynność po zakończeniu procesu.",
+          "remove": [
+            "R6"
+          ],
+          "W": [
+            [
+              "Requested",
+              "confirm",
+              "staff_available",
+              "Confirmed"
+            ],
+            [
+              "Confirmed",
+              "check_in",
+              null,
+              "CheckedIn"
+            ],
+            [
+              "CheckedIn",
+              "complete",
+              null,
+              "Completed"
+            ]
+          ],
+          "P": []
+        }
+      ]
+    }
+  ],
+  "conflicts": {
+    "access": [
+      {
+        "id": "Z1",
+        "kind": "state",
+        "description": "Dodajemy revoke w Active mimo zachowanego zakazu.",
+        "add": [
+          {
+            "id": "R8",
+            "text": "Z Active zdarzenie revoke ma być dozwolone i prowadzić do Revoked.",
+            "tests": [
+              {
+                "type": "has_transition",
+                "from": "Active",
+                "event": "revoke",
+                "to": "Revoked"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R4",
+          "R8"
+        ]
+      },
+      {
+        "id": "Z2",
+        "kind": "transitive",
+        "description": "Dodajemy łańcuch zależności sprzeczny z warunkiem approval_granted.",
+        "add": [
+          {
+            "id": "R9",
+            "text": "Zdarzenie activate w Verified wymaga service_online; zachodzenie service_online wymaga approval_denied. Zatem przy approval_granted zdarzenie activate jest zabronione.",
+            "tests": [
+              {
+                "type": "no_transition",
+                "from": "Verified",
+                "event": "activate",
+                "guard": "approval_granted"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R2",
+          "R9"
+        ]
+      },
+      {
+        "id": "Z3",
+        "kind": "ordering",
+        "description": "Odwracamy obowiązkową kolejność dwóch osiągalnych stanów.",
+        "add": [
+          {
+            "id": "R10",
+            "text": "Stan Active jest osiągalny i każda droga do niego musi wcześniej przejść przez Closed.",
+            "tests": [
+              {
+                "type": "reachable",
+                "state": "Active"
+              },
+              {
+                "type": "always_before",
+                "state": "Active",
+                "before": "Closed"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R5",
+          "R10"
+        ]
+      },
+      {
+        "id": "Z4",
+        "kind": "trap",
+        "description": "Ograniczamy close warunkiem service_online; pozostałe wymagania mogą nadal być spełnione.",
+        "add": [
+          {
+            "id": "R11",
+            "text": "Zdarzenie close w Active wymaga service_online, a wtedy prowadzi do Closed. Nie wprowadzamy zależności między service_online a approval_granted.",
+            "tests": [
+              {
+                "type": "has_transition",
+                "from": "Active",
+                "event": "close",
+                "guard": "service_online",
+                "to": "Closed"
+              },
+              {
+                "type": "no_transition",
+                "from": "Active",
+                "event": "close",
+                "guard": "service_offline"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "library": [
+      {
+        "id": "Z1",
+        "kind": "state",
+        "description": "Dodajemy cancel w Borrowed mimo zachowanego zakazu.",
+        "add": [
+          {
+            "id": "R8",
+            "text": "Z Borrowed zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+            "tests": [
+              {
+                "type": "has_transition",
+                "from": "Borrowed",
+                "event": "cancel",
+                "to": "Cancelled"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R4",
+          "R8"
+        ]
+      },
+      {
+        "id": "Z2",
+        "kind": "transitive",
+        "description": "Dodajemy łańcuch zależności sprzeczny z warunkiem member_active.",
+        "add": [
+          {
+            "id": "R9",
+            "text": "Zdarzenie borrow w Reserved wymaga copy_available; zachodzenie copy_available wymaga member_inactive. Zatem przy member_active zdarzenie borrow jest zabronione.",
+            "tests": [
+              {
+                "type": "no_transition",
+                "from": "Reserved",
+                "event": "borrow",
+                "guard": "member_active"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R2",
+          "R9"
+        ]
+      },
+      {
+        "id": "Z3",
+        "kind": "ordering",
+        "description": "Odwracamy obowiązkową kolejność dwóch osiągalnych stanów.",
+        "add": [
+          {
+            "id": "R10",
+            "text": "Stan Borrowed jest osiągalny i każda droga do niego musi wcześniej przejść przez Returned.",
+            "tests": [
+              {
+                "type": "reachable",
+                "state": "Borrowed"
+              },
+              {
+                "type": "always_before",
+                "state": "Borrowed",
+                "before": "Returned"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R5",
+          "R10"
+        ]
+      },
+      {
+        "id": "Z4",
+        "kind": "trap",
+        "description": "Ograniczamy return warunkiem copy_available; pozostałe wymagania mogą nadal być spełnione.",
+        "add": [
+          {
+            "id": "R11",
+            "text": "Zdarzenie return w Borrowed wymaga copy_available, a wtedy prowadzi do Returned. Nie wprowadzamy zależności między copy_available a member_active.",
+            "tests": [
+              {
+                "type": "has_transition",
+                "from": "Borrowed",
+                "event": "return",
+                "guard": "copy_available",
+                "to": "Returned"
+              },
+              {
+                "type": "no_transition",
+                "from": "Borrowed",
+                "event": "return",
+                "guard": "copy_unavailable"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "reservations": [
+      {
+        "id": "Z1",
+        "kind": "state",
+        "description": "Dodajemy cancel w CheckedIn mimo zachowanego zakazu.",
+        "add": [
+          {
+            "id": "R8",
+            "text": "Z CheckedIn zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+            "tests": [
+              {
+                "type": "has_transition",
+                "from": "CheckedIn",
+                "event": "cancel",
+                "to": "Cancelled"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R4",
+          "R8"
+        ]
+      },
+      {
+        "id": "Z2",
+        "kind": "transitive",
+        "description": "Dodajemy łańcuch zależności sprzeczny z warunkiem deposit_paid.",
+        "add": [
+          {
+            "id": "R9",
+            "text": "Zdarzenie check_in w Confirmed wymaga staff_available; zachodzenie staff_available wymaga deposit_unpaid. Zatem przy deposit_paid zdarzenie check_in jest zabronione.",
+            "tests": [
+              {
+                "type": "no_transition",
+                "from": "Confirmed",
+                "event": "check_in",
+                "guard": "deposit_paid"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R2",
+          "R9"
+        ]
+      },
+      {
+        "id": "Z3",
+        "kind": "ordering",
+        "description": "Odwracamy obowiązkową kolejność dwóch osiągalnych stanów.",
+        "add": [
+          {
+            "id": "R10",
+            "text": "Stan CheckedIn jest osiągalny i każda droga do niego musi wcześniej przejść przez Completed.",
+            "tests": [
+              {
+                "type": "reachable",
+                "state": "CheckedIn"
+              },
+              {
+                "type": "always_before",
+                "state": "CheckedIn",
+                "before": "Completed"
+              }
+            ]
+          }
+        ],
+        "conflicting": [
+          "R5",
+          "R10"
+        ]
+      },
+      {
+        "id": "Z4",
+        "kind": "trap",
+        "description": "Ograniczamy complete warunkiem staff_available; pozostałe wymagania mogą nadal być spełnione.",
+        "add": [
+          {
+            "id": "R11",
+            "text": "Zdarzenie complete w CheckedIn wymaga staff_available, a wtedy prowadzi do Completed. Nie wprowadzamy zależności między staff_available a deposit_paid.",
+            "tests": [
+              {
+                "type": "has_transition",
+                "from": "CheckedIn",
+                "event": "complete",
+                "guard": "staff_available",
+                "to": "Completed"
+              },
+              {
+                "type": "no_transition",
+                "from": "CheckedIn",
+                "event": "complete",
+                "guard": "staff_unavailable"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
