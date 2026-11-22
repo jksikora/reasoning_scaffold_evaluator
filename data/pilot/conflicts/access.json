@@ -1,0 +1,103 @@
+{
+  "system": "access",
+  "cases": [
+    {
+      "id": "Z1",
+      "kind": "state",
+      "description": "Dodajemy revoke w Active mimo zachowanego zakazu.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Z Active zdarzenie revoke ma być dozwolone i prowadzić do Revoked.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Active",
+              "event": "revoke",
+              "to": "Revoked"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R4",
+        "R8"
+      ]
+    },
+    {
+      "id": "Z2",
+      "kind": "transitive",
+      "description": "Dodajemy łańcuch zależności sprzeczny z warunkiem approval_granted.",
+      "add": [
+        {
+          "id": "R9",
+          "text": "Zdarzenie activate w Verified wymaga service_online; zachodzenie service_online wymaga approval_denied. Zatem przy approval_granted zdarzenie activate jest zabronione.",
+          "tests": [
+            {
+              "type": "no_transition",
+              "from": "Verified",
+              "event": "activate",
+              "guard": "approval_granted"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R2",
+        "R9"
+      ]
+    },
+    {
+      "id": "Z3",
+      "kind": "ordering",
+      "description": "Odwracamy obowiązkową kolejność dwóch osiągalnych stanów.",
+      "add": [
+        {
+          "id": "R10",
+          "text": "Stan Active jest osiągalny i każda droga do niego musi wcześniej przejść przez Closed.",
+          "tests": [
+            {
+              "type": "reachable",
+              "state": "Active"
+            },
+            {
+              "type": "always_before",
+              "state": "Active",
+              "before": "Closed"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R5",
+        "R10"
+      ]
+    },
+    {
+      "id": "Z4",
+      "kind": "trap",
+      "description": "Ograniczamy close warunkiem service_online; pozostałe wymagania mogą nadal być spełnione.",
+      "add": [
+        {
+          "id": "R11",
+          "text": "Zdarzenie close w Active wymaga service_online, a wtedy prowadzi do Closed. Nie wprowadzamy zależności między service_online a approval_granted.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Active",
+              "event": "close",
+              "guard": "service_online",
+              "to": "Closed"
+            },
+            {
+              "type": "no_transition",
+              "from": "Active",
+              "event": "close",
+              "guard": "service_offline"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

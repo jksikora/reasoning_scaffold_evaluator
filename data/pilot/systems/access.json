@@ -1,0 +1,328 @@
+{
+  "system": "access",
+  "purpose": "pilot",
+  "note": "Dane pilotażowe; nie stanowią eksperymentu głównego.",
+  "vocabulary": {
+    "states": [
+      "Pending",
+      "Verified",
+      "Active",
+      "Closed",
+      "Revoked",
+      "Archived"
+    ],
+    "events": [
+      "verify",
+      "activate",
+      "close",
+      "revoke",
+      "archive"
+    ],
+    "guards": [
+      "approval_granted",
+      "approval_denied",
+      "service_online",
+      "service_offline"
+    ],
+    "exclusive": [
+      [
+        "approval_granted",
+        "approval_denied"
+      ],
+      [
+        "service_online",
+        "service_offline"
+      ]
+    ]
+  },
+  "initial": "Pending",
+  "steps": [
+    {
+      "type": "initial",
+      "add": [
+        {
+          "id": "R1",
+          "text": "W procesie uprawnienia dostępu: z Pending zdarzenie verify prowadzi do Verified; dalsze reguły mogą ograniczać jego dostępność.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Pending",
+              "event": "verify",
+              "to": "Verified"
+            }
+          ]
+        },
+        {
+          "id": "R2",
+          "text": "Z Verified zdarzenie activate prowadzi do Active wtedy i tylko wtedy, gdy zachodzi approval_granted.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Verified",
+              "event": "activate",
+              "guard": "approval_granted",
+              "to": "Active"
+            },
+            {
+              "type": "no_transition",
+              "from": "Verified",
+              "event": "activate",
+              "guard": "approval_denied"
+            }
+          ]
+        },
+        {
+          "id": "R3",
+          "text": "Z Active zdarzenie close prowadzi do Closed; dalsze reguły mogą ograniczać jego dostępność.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Active",
+              "event": "close",
+              "to": "Closed"
+            }
+          ]
+        },
+        {
+          "id": "R4",
+          "text": "W stanie Active zdarzenie revoke jest zabronione.",
+          "tests": [
+            {
+              "type": "no_transition",
+              "from": "Active",
+              "event": "revoke"
+            }
+          ]
+        },
+        {
+          "id": "R5",
+          "text": "Stan Closed jest osiągalny; każda droga do niego musi przejść przez Active.",
+          "tests": [
+            {
+              "type": "reachable",
+              "state": "Closed"
+            },
+            {
+              "type": "always_before",
+              "state": "Closed",
+              "before": "Active"
+            }
+          ]
+        }
+      ],
+      "W": [
+        [
+          "Pending",
+          "verify",
+          null,
+          "Verified"
+        ],
+        [
+          "Verified",
+          "activate",
+          "approval_granted",
+          "Active"
+        ],
+        [
+          "Active",
+          "close",
+          null,
+          "Closed"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "transition_change",
+      "description": "Usuwamy ograniczenie approval_granted dla activate.",
+      "add": [
+        {
+          "id": "R2",
+          "text": "Z Verified zdarzenie activate bez warunku prowadzi do Active.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Verified",
+              "event": "activate",
+              "guard": null,
+              "to": "Active"
+            }
+          ]
+        }
+      ],
+      "W": [
+        [
+          "Pending",
+          "verify",
+          null,
+          "Verified"
+        ],
+        [
+          "Verified",
+          "activate",
+          null,
+          "Active"
+        ],
+        [
+          "Active",
+          "close",
+          null,
+          "Closed"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "contradiction",
+      "description": "Żądamy revoke w Active, zachowując dotychczasowy zakaz.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Z Active zdarzenie revoke ma być dozwolone i prowadzić do Revoked.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Active",
+              "event": "revoke",
+              "to": "Revoked"
+            }
+          ]
+        }
+      ],
+      "kind": "state",
+      "conflicting": [
+        "R4",
+        "R8"
+      ]
+    },
+    {
+      "type": "new_rule",
+      "description": "Dodajemy czynność po zakończeniu procesu.",
+      "add": [
+        {
+          "id": "R6",
+          "text": "Z Closed zdarzenie archive bez warunku prowadzi do Archived.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Closed",
+              "event": "archive",
+              "guard": null,
+              "to": "Archived"
+            }
+          ]
+        }
+      ],
+      "W": [
+        [
+          "Pending",
+          "verify",
+          null,
+          "Verified"
+        ],
+        [
+          "Verified",
+          "activate",
+          null,
+          "Active"
+        ],
+        [
+          "Active",
+          "close",
+          null,
+          "Closed"
+        ],
+        [
+          "Closed",
+          "archive",
+          null,
+          "Archived"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "new_dependency",
+      "description": "Uzależniamy verify od service_online.",
+      "add": [
+        {
+          "id": "R7",
+          "text": "Zdarzenie verify w Pending jest dozwolone tylko przy service_online, a wtedy prowadzi do Verified.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Pending",
+              "event": "verify",
+              "guard": "service_online",
+              "to": "Verified"
+            },
+            {
+              "type": "no_transition",
+              "from": "Pending",
+              "event": "verify",
+              "guard": "service_offline"
+            }
+          ]
+        }
+      ],
+      "affects": [
+        "R1"
+      ],
+      "W": [
+        [
+          "Pending",
+          "verify",
+          "service_online",
+          "Verified"
+        ],
+        [
+          "Verified",
+          "activate",
+          null,
+          "Active"
+        ],
+        [
+          "Active",
+          "close",
+          null,
+          "Closed"
+        ],
+        [
+          "Closed",
+          "archive",
+          null,
+          "Archived"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "removal",
+      "description": "Usuwamy czynność po zakończeniu procesu.",
+      "remove": [
+        "R6"
+      ],
+      "W": [
+        [
+          "Pending",
+          "verify",
+          "service_online",
+          "Verified"
+        ],
+        [
+          "Verified",
+          "activate",
+          null,
+          "Active"
+        ],
+        [
+          "Active",
+          "close",
+          null,
+          "Closed"
+        ]
+      ],
+      "P": []
+    }
+  ]
+}

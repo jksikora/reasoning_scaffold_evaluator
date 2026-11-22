@@ -1,0 +1,334 @@
+{
+  "system": "reservations",
+  "purpose": "pilot",
+  "note": "Dane pilotażowe; nie stanowią eksperymentu głównego.",
+  "vocabulary": {
+    "states": [
+      "Requested",
+      "Confirmed",
+      "CheckedIn",
+      "Completed",
+      "Cancelled",
+      "Reviewed"
+    ],
+    "events": [
+      "confirm",
+      "check_in",
+      "complete",
+      "cancel",
+      "review"
+    ],
+    "guards": [
+      "deposit_paid",
+      "deposit_unpaid",
+      "staff_available",
+      "staff_unavailable"
+    ],
+    "exclusive": [
+      [
+        "deposit_paid",
+        "deposit_unpaid"
+      ],
+      [
+        "staff_available",
+        "staff_unavailable"
+      ]
+    ]
+  },
+  "initial": "Requested",
+  "steps": [
+    {
+      "type": "initial",
+      "add": [
+        {
+          "id": "R1",
+          "text": "W procesie rezerwacji: z Requested zdarzenie confirm prowadzi do Confirmed; dalsze reguły mogą ograniczać jego dostępność.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Requested",
+              "event": "confirm",
+              "to": "Confirmed"
+            }
+          ]
+        },
+        {
+          "id": "R2",
+          "text": "Z Confirmed zdarzenie check_in prowadzi do CheckedIn wtedy i tylko wtedy, gdy zachodzi deposit_paid.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Confirmed",
+              "event": "check_in",
+              "guard": "deposit_paid",
+              "to": "CheckedIn"
+            },
+            {
+              "type": "no_transition",
+              "from": "Confirmed",
+              "event": "check_in",
+              "guard": "deposit_unpaid"
+            }
+          ]
+        },
+        {
+          "id": "R3",
+          "text": "Z CheckedIn zdarzenie complete prowadzi do Completed; dalsze reguły mogą ograniczać jego dostępność.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "CheckedIn",
+              "event": "complete",
+              "to": "Completed"
+            }
+          ]
+        },
+        {
+          "id": "R4",
+          "text": "W stanie CheckedIn zdarzenie cancel jest zabronione.",
+          "tests": [
+            {
+              "type": "no_transition",
+              "from": "CheckedIn",
+              "event": "cancel"
+            }
+          ]
+        },
+        {
+          "id": "R5",
+          "text": "Stan Completed jest osiągalny; każda droga do niego musi przejść przez CheckedIn.",
+          "tests": [
+            {
+              "type": "reachable",
+              "state": "Completed"
+            },
+            {
+              "type": "always_before",
+              "state": "Completed",
+              "before": "CheckedIn"
+            }
+          ]
+        }
+      ],
+      "W": [
+        [
+          "Requested",
+          "confirm",
+          null,
+          "Confirmed"
+        ],
+        [
+          "Confirmed",
+          "check_in",
+          "deposit_paid",
+          "CheckedIn"
+        ],
+        [
+          "CheckedIn",
+          "complete",
+          null,
+          "Completed"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "new_rule",
+      "description": "Dodajemy czynność po zakończeniu procesu.",
+      "add": [
+        {
+          "id": "R6",
+          "text": "Z Completed zdarzenie review bez warunku prowadzi do Reviewed.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Completed",
+              "event": "review",
+              "guard": null,
+              "to": "Reviewed"
+            }
+          ]
+        }
+      ],
+      "W": [
+        [
+          "Requested",
+          "confirm",
+          null,
+          "Confirmed"
+        ],
+        [
+          "Confirmed",
+          "check_in",
+          "deposit_paid",
+          "CheckedIn"
+        ],
+        [
+          "CheckedIn",
+          "complete",
+          null,
+          "Completed"
+        ],
+        [
+          "Completed",
+          "review",
+          null,
+          "Reviewed"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "new_dependency",
+      "description": "Uzależniamy confirm od staff_available.",
+      "add": [
+        {
+          "id": "R7",
+          "text": "Zdarzenie confirm w Requested jest dozwolone tylko przy staff_available, a wtedy prowadzi do Confirmed.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Requested",
+              "event": "confirm",
+              "guard": "staff_available",
+              "to": "Confirmed"
+            },
+            {
+              "type": "no_transition",
+              "from": "Requested",
+              "event": "confirm",
+              "guard": "staff_unavailable"
+            }
+          ]
+        }
+      ],
+      "affects": [
+        "R1"
+      ],
+      "W": [
+        [
+          "Requested",
+          "confirm",
+          "staff_available",
+          "Confirmed"
+        ],
+        [
+          "Confirmed",
+          "check_in",
+          "deposit_paid",
+          "CheckedIn"
+        ],
+        [
+          "CheckedIn",
+          "complete",
+          null,
+          "Completed"
+        ],
+        [
+          "Completed",
+          "review",
+          null,
+          "Reviewed"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "contradiction",
+      "description": "Żądamy cancel w CheckedIn, zachowując dotychczasowy zakaz.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Z CheckedIn zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "CheckedIn",
+              "event": "cancel",
+              "to": "Cancelled"
+            }
+          ]
+        }
+      ],
+      "kind": "state",
+      "conflicting": [
+        "R4",
+        "R8"
+      ]
+    },
+    {
+      "type": "transition_change",
+      "description": "Usuwamy ograniczenie deposit_paid dla check_in.",
+      "add": [
+        {
+          "id": "R2",
+          "text": "Z Confirmed zdarzenie check_in bez warunku prowadzi do CheckedIn.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Confirmed",
+              "event": "check_in",
+              "guard": null,
+              "to": "CheckedIn"
+            }
+          ]
+        }
+      ],
+      "W": [
+        [
+          "Requested",
+          "confirm",
+          "staff_available",
+          "Confirmed"
+        ],
+        [
+          "Confirmed",
+          "check_in",
+          null,
+          "CheckedIn"
+        ],
+        [
+          "CheckedIn",
+          "complete",
+          null,
+          "Completed"
+        ],
+        [
+          "Completed",
+          "review",
+          null,
+          "Reviewed"
+        ]
+      ],
+      "P": []
+    },
+    {
+      "type": "removal",
+      "description": "Usuwamy czynność po zakończeniu procesu.",
+      "remove": [
+        "R6"
+      ],
+      "W": [
+        [
+          "Requested",
+          "confirm",
+          "staff_available",
+          "Confirmed"
+        ],
+        [
+          "Confirmed",
+          "check_in",
+          null,
+          "CheckedIn"
+        ],
+        [
+          "CheckedIn",
+          "complete",
+          null,
+          "Completed"
+        ]
+      ],
+      "P": []
+    }
+  ]
+}

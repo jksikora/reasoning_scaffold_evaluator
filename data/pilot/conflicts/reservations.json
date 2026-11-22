@@ -1,0 +1,103 @@
+{
+  "system": "reservations",
+  "cases": [
+    {
+      "id": "Z1",
+      "kind": "state",
+      "description": "Dodajemy cancel w CheckedIn mimo zachowanego zakazu.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Z CheckedIn zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "CheckedIn",
+              "event": "cancel",
+              "to": "Cancelled"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R4",
+        "R8"
+      ]
+    },
+    {
+      "id": "Z2",
+      "kind": "transitive",
+      "description": "Dodajemy łańcuch zależności sprzeczny z warunkiem deposit_paid.",
+      "add": [
+        {
+          "id": "R9",
+          "text": "Zdarzenie check_in w Confirmed wymaga staff_available; zachodzenie staff_available wymaga deposit_unpaid. Zatem przy deposit_paid zdarzenie check_in jest zabronione.",
+          "tests": [
+            {
+              "type": "no_transition",
+              "from": "Confirmed",
+              "event": "check_in",
+              "guard": "deposit_paid"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R2",
+        "R9"
+      ]
+    },
+    {
+      "id": "Z3",
+      "kind": "ordering",
+      "description": "Odwracamy obowiązkową kolejność dwóch osiągalnych stanów.",
+      "add": [
+        {
+          "id": "R10",
+          "text": "Stan CheckedIn jest osiągalny i każda droga do niego musi wcześniej przejść przez Completed.",
+          "tests": [
+            {
+              "type": "reachable",
+              "state": "CheckedIn"
+            },
+            {
+              "type": "always_before",
+              "state": "CheckedIn",
+              "before": "Completed"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R5",
+        "R10"
+      ]
+    },
+    {
+      "id": "Z4",
+      "kind": "trap",
+      "description": "Ograniczamy complete warunkiem staff_available; pozostałe wymagania mogą nadal być spełnione.",
+      "add": [
+        {
+          "id": "R11",
+          "text": "Zdarzenie complete w CheckedIn wymaga staff_available, a wtedy prowadzi do Completed. Nie wprowadzamy zależności między staff_available a deposit_paid.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "CheckedIn",
+              "event": "complete",
+              "guard": "staff_available",
+              "to": "Completed"
+            },
+            {
+              "type": "no_transition",
+              "from": "CheckedIn",
+              "event": "complete",
+              "guard": "staff_unavailable"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "system": "library",
+  "cases": [
+    {
+      "id": "Z1",
+      "kind": "state",
+      "description": "Dodajemy cancel w Borrowed mimo zachowanego zakazu.",
+      "add": [
+        {
+          "id": "R8",
+          "text": "Z Borrowed zdarzenie cancel ma być dozwolone i prowadzić do Cancelled.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Borrowed",
+              "event": "cancel",
+              "to": "Cancelled"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R4",
+        "R8"
+      ]
+    },
+    {
+      "id": "Z2",
+      "kind": "transitive",
+      "description": "Dodajemy łańcuch zależności sprzeczny z warunkiem member_active.",
+      "add": [
+        {
+          "id": "R9",
+          "text": "Zdarzenie borrow w Reserved wymaga copy_available; zachodzenie copy_available wymaga member_inactive. Zatem przy member_active zdarzenie borrow jest zabronione.",
+          "tests": [
+            {
+              "type": "no_transition",
+              "from": "Reserved",
+              "event": "borrow",
+              "guard": "member_active"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R2",
+        "R9"
+      ]
+    },
+    {
+      "id": "Z3",
+      "kind": "ordering",
+      "description": "Odwracamy obowiązkową kolejność dwóch osiągalnych stanów.",
+      "add": [
+        {
+          "id": "R10",
+          "text": "Stan Borrowed jest osiągalny i każda droga do niego musi wcześniej przejść przez Returned.",
+          "tests": [
+            {
+              "type": "reachable",
+              "state": "Borrowed"
+            },
+            {
+              "type": "always_before",
+              "state": "Borrowed",
+              "before": "Returned"
+            }
+          ]
+        }
+      ],
+      "conflicting": [
+        "R5",
+        "R10"
+      ]
+    },
+    {
+      "id": "Z4",
+      "kind": "trap",
+      "description": "Ograniczamy return warunkiem copy_available; pozostałe wymagania mogą nadal być spełnione.",
+      "add": [
+        {
+          "id": "R11",
+          "text": "Zdarzenie return w Borrowed wymaga copy_available, a wtedy prowadzi do Returned. Nie wprowadzamy zależności między copy_available a member_active.",
+          "tests": [
+            {
+              "type": "has_transition",
+              "from": "Borrowed",
+              "event": "return",
+              "guard": "copy_available",
+              "to": "Returned"
+            },
+            {
+              "type": "no_transition",
+              "from": "Borrowed",
+              "event": "return",
+              "guard": "copy_unavailable"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
